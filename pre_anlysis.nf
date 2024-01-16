@@ -79,7 +79,6 @@ process TRANSFORM_READS {
 
     tag "${ref_base} >> ${alt_base} transform on ${sample_id}"
     publishDir "${params.transform_output_dir}/${ref_base}2${alt_base}", pattern: '*.fastq', mode: 'copy'
-    // publishDir "${params.transform_output_dir}/${sample_id}/mate2/", pattern: '*_2.fastq', mode: 'copy'
 
     input:
         tuple val(sample_id), path(unmapped_fastq)
@@ -131,7 +130,12 @@ process SECOND_STAR_MAP{
     publishDir "${params.second_map_output_dir}", pattern: '*.{SAM, BAM}', mode: 'copy'
 
     input:
-    tuple path(transformed_reads), path(transformed_genome)
+    // path(mount_trasnsformed_fastq)
+    // path(mount_transformed_genome)
+    // path(mount_transformed_index_files)
+    path(trans_fastqs)
+    path(trans_genome)
+    path(trans_index_files)
 
     output:
     // path mapped_reads
@@ -139,8 +143,9 @@ process SECOND_STAR_MAP{
 
     script:
     """
-    echo "transformed_reads: ${transformed_reads}"
-    echo "transformed genome ${transformed_genome}"
+    echo "transformed_reads: ${trans_fastqs}"
+    echo "transformed genome ${trans_genome}"
+    echo "transformed index ${trans_index_files}"
     """
 }
 
@@ -177,23 +182,47 @@ workflow {
         .set {bases_combination_ch}
 
     // Transform all of the unmapped reads recieved from FIRST_STAR_MAP (12 different bases combination)
+    // group by the base combination and collect (wait) for all
     trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
-    trans_reads_ch.view()
-
-    // TODO-
-        // 1. why not all the samples go through transformation??
-
-        
-    // // get all tramsformed genome and extract prefix - ref_base2alt_base, and map it to the file
-    // Channel
-    //     .fromPath(params.transformed_genomes)
-    //     .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
-    //     .set {transformed_genomes_ch}
+                    // .collect(flat: false)
+                    .map { it ->
+                            def prefix = it[0].name.toString().tokenize('_').get(0)
+                            return tuple(prefix, [it[0], it[1]])}
+                    .groupTuple(by:0)
+    // get all tramsformed genome and extract prefix - ref_base2alt_base, and map it to the file
+    Channel
+        .fromPath(params.transformed_genomes)
+        .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
+        .set {transformed_genomes_ch}
     
-    // // concat genome chanel and reads chanel and grupy by the base comination
-    // // (for exp: [A2C, A2C_transformed_genome]+[A2C, A2C_read1, A2C,read2]) --> 
-    // //           [A2C,[A2C_transformed_genome,[A2C, A2C_read1, A2C,read2]]])
-    // temp_reads_and_genomes_ch = trans_reads_ch.concat(transformed_genomes_ch).groupTuple()
+    // transformed_genomes_ch.view()
+    // get all tramsformed indexes' files
+    // extract prefix - ref_base2alt_base, and map it to the files
+    // make touples of [base_combination, [index_files]]
+    Channel
+        .fromPath(params.transformed_indexes)
+        .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
+        .groupTuple(by: 0, size: params.num_of_index_files)
+        .set {transformed_index_ch}
+    
+    // concat all of the transformed files together: reads, genome, index' files
+    // group by the base combination
+    // for exmp: [A2C,[[A2C_read1, A2C_read2..],A2C_transformed_genome,[A2C_index_file_1, A2C_index_file_2...]]])
+    // get only the files (by using map)
+    tranformed_files_ch = trans_reads_ch.concat(transformed_genomes_ch)
+                                        .concat(transformed_index_ch)
+                                        .groupTuple(by:0)
+                                        .map {tuple -> tuple[1]}
+
+    // tranformed_files_ch.view()
+    // 
+    reads_channel_mount = tranformed_files_ch.map { tuple -> tuple[0].flatten() }
+    genome_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
+    index_channel_mount = tranformed_files_ch.map { tuple -> tuple[2] }
+    SECOND_STAR_MAP(reads_channel_mount, genome_channel_mount, index_channel_mount)
+    SECOND_STAR_MAP.out.view()
+
+
 
     // // get only transformed files
     // reads_and_genomes_ch = temp_reads_and_genomes_ch.map {it -> it[1]}
