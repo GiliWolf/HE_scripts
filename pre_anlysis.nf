@@ -126,27 +126,91 @@ process TRANSFORM_READS {
 }
 
 process SECOND_STAR_MAP{
-    tag "2nd MAP: ${transformed_reads}"
-    publishDir "${params.second_map_output_dir}", pattern: '*.{SAM, BAM}', mode: 'copy'
+    maxForks 1
+    tag "2nd MAP: ${base_comb}"
+    publishDir "${params.second_map_output_dir}/${base_comb}", pattern: '*.{SAM, BAM}', mode: 'rellink'
 
     input:
-    // path(mount_trasnsformed_fastq)
-    // path(mount_transformed_genome)
-    // path(mount_transformed_index_files)
-    path(trans_fastqs)
-    path(trans_genome)
-    path(trans_index_files)
+        path(trans_fastqs)
+        path(trans_genome)
+        path(trans_index_dir)
 
     output:
-    // path mapped_reads
-    stdout
+        stdout
 
     script:
+    // number of samples- for PE: number of fastq files / 2, for SE: number of files
+    num_of_samples = params.pair_end ? trans_fastqs.size()/2 : trans_fastqs.size()
+    // base combination (MM): first part o fthe index dir name 
+    // ( for example: A2C_transformed_hg38.fa_index -> A2C)
+    base_comb = trans_index_dir.name.toString().tokenize('_').get(0)
+    // number of files to be mapped each time- PE: 2, SE:1 
+    step = params.pair_end ? 2 : 1
+
     """
     echo "transformed_reads: ${trans_fastqs}"
     echo "transformed genome ${trans_genome}"
-    echo "transformed index ${trans_index_files}"
+    echo "transformed index ${trans_index_dir}"
+    echo "number of samples: ${num_of_samples}"
+    echo "step: ${step}"
+    #LOAD GENOME:
+    echo 'loading genome'
+    echo ${params.STAR_command} --genomeDir ${trans_index_dir}  --genomeLoad LoadAndExit
+    echo 'finished loading'
+
+    # MODIFY FASQS FILES INTO A BASH LIST:  
+        # transform fastq file's names into string
+        fastqs_string="${trans_fastqs}"
+        # Split the string into a list
+        IFS=' ' read -ra samples_list <<< "\$fastqs_string"
+
+    for element in "\${samples_list[@]}"; do
+    echo "\$element"
+    done
+
+    # ALLIGNMENT:
+    echo 'Starting allignmet'
+
+    # spilitting the samples into chunks of STAR_MAX_PARALLEL
+    for ((i=0; i<${num_of_samples}; i+=${params.STAR_MAX_PARALLEL})); do
+        #iterate over each chunk making sure it doesn't exceed number of samples
+        for ((j=i; j<i+${params.STAR_MAX_PARALLEL} && j<${num_of_samples}; j++)); do
+        # extract samples and sample_id
+            mate1=\${samples_list[j*${step}]}
+            if [ ${params.pair_end} == 0 ]; then
+                mate2=''
+            else
+                mate2=\${samples_list[j*${step}+1]}
+            fi
+            sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+
+            echo "mate1: \${mate1}"
+            echo "mate2: \${mate2}"
+            echo "sample_id: \${sample_id}"
+        
+            # mapping each sample in the background
+            echo "${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}/" &> run_\${sample_id} &"
+
+        done
+
+        # wait for the allignment of each chunk to end inorder to parallel only STAR_MAX_PARALLEL number of proceeses
+        wait
+    done
+
+    echo ${params.STAR_command} --genomeDir ${trans_index_dir}  --genomeLoad Remove
     """
+    // # extract sample/s and sample_id
+    //         mate1=\${samples_list[j*${step}]
+    //         if [ ${params.pair_end} == 0 ]; then
+    //             mate2=''
+    //         else
+    //             mate2=\${samples_list[j*${step}+1]
+    //         fi
+    //         sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+
+    //         echo "mate1: \${mate1}"
+    //         echo "mate2: \${mate2}"
+    //         echo "sample_id: \${sample_id}"
 }
 
 // process RETRANSFORM {
@@ -200,9 +264,9 @@ workflow {
     // extract prefix - ref_base2alt_base, and map it to the files
     // make touples of [base_combination, [index_files]]
     Channel
-        .fromPath(params.transformed_indexes)
+        .fromPath(params.transformed_indexes, type: 'dir')
         .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
-        .groupTuple(by: 0, size: params.num_of_index_files)
+        .groupTuple(by: 0)
         .set {transformed_index_ch}
     
     // concat all of the transformed files together: reads, genome, index' files
