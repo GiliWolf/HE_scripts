@@ -135,7 +135,7 @@ process TRANSFORM_READS {
 process SECOND_STAR_MAP{
     maxForks 1
     tag "2nd MAP: ${base_comb}"
-    publishDir "${params.second_map_output_dir}/${base_comb}", pattern: '*.{SAM, BAM}', mode: 'rellink'
+    publishDir "${params.second_map_output_dir}/${base_comb}", pattern: '*', mode: 'rellink'
 
     input:
         path(trans_fastqs)
@@ -143,6 +143,7 @@ process SECOND_STAR_MAP{
         path(trans_index_dir)
 
     output:
+        path('*')
         stdout
 
     script:
@@ -155,11 +156,9 @@ process SECOND_STAR_MAP{
     step = params.pair_end ? 2 : 1
 
     """
-    ls ${trans_index_dir}
-    
-    #LOAD GENOME:
+    # LOAD GENOME:
     echo 'loading genome'
-    echo ${params.STAR_command} --genomeDir ${trans_index_dir}  --genomeLoad LoadAndExit
+    ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad LoadAndExit
     echo 'finished loading'
 
     # MODIFY FASQS FILES INTO A BASH LIST:  
@@ -177,12 +176,14 @@ process SECOND_STAR_MAP{
 
     # spilitting the samples into chunks of STAR_MAX_PARALLEL
     for ((i=0; i<${num_of_samples}; i+=${params.STAR_MAX_PARALLEL})); do
-        #iterate over each chunk making sure it doesn't exceed number of samples
+        # iterate over each chunk making sure it doesn't exceed number of samples
         for ((j=i; j<i+${params.STAR_MAX_PARALLEL} && j<${num_of_samples}; j++)); do
         # extract samples and sample_id
             mate1=\${samples_list[j*${step}]}
+            # SE: set mate2 to an empty string
             if [ ${params.pair_end} == 0 ]; then
                 mate2=''
+            # PE: set mate2 to the next file
             else
                 mate2=\${samples_list[j*${step}+1]}
             fi
@@ -193,15 +194,16 @@ process SECOND_STAR_MAP{
             echo "sample_id: \${sample_id}"
         
             # mapping each sample in the background
-            echo "${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}/" &> run_\${sample_id} &"
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}/" &> run_\${sample_id} &
 
         done
 
-        # wait for the allignment of each chunk to end inorder to parallel only STAR_MAX_PARALLEL number of proceeses
+    #   Wait for the completion of each chunk's alignment to enable parallel processing,
+    #   ensuring that only a maximum of STAR_MAX_PARALLEL processes are run concurrently.
         wait
     done
 
-    echo ${params.STAR_command} --genomeDir ${trans_index_dir}  --genomeLoad Remove
+    ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad Remove
     """
     // # extract sample/s and sample_id
     //         mate1=\${samples_list[j*${step}]
@@ -288,7 +290,7 @@ workflow {
     genome_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
     index_channel_mount = tranformed_files_ch.map { tuple -> tuple[2] }
     SECOND_STAR_MAP(reads_channel_mount, genome_channel_mount, index_channel_mount)
-    SECOND_STAR_MAP.out.view()
+    SECOND_STAR_MAP.out[1].view()
 
 
 
