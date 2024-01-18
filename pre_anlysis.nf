@@ -125,6 +125,13 @@ process TRANSFORM_READS {
 
 }
 
+// This process operates on one base combination (MM) at a time (A2C, C2A, T2G, ...).
+// It takes in the transformed index of a certain base combination and all the
+//  transformed fastq files of the same combination.
+// The process then maps each sample to the index using internal bash parallel processing.
+// The code structure is inspired by Itamar Twersky's STAR_load_and_alignment_all process
+//  in the star.nf file from Erez Lebanon's Lab in 2023.
+
 process SECOND_STAR_MAP{
     maxForks 1
     tag "2nd MAP: ${base_comb}"
@@ -148,11 +155,8 @@ process SECOND_STAR_MAP{
     step = params.pair_end ? 2 : 1
 
     """
-    echo "transformed_reads: ${trans_fastqs}"
-    echo "transformed genome ${trans_genome}"
-    echo "transformed index ${trans_index_dir}"
-    echo "number of samples: ${num_of_samples}"
-    echo "step: ${step}"
+    ls ${trans_index_dir}
+    
     #LOAD GENOME:
     echo 'loading genome'
     echo ${params.STAR_command} --genomeDir ${trans_index_dir}  --genomeLoad LoadAndExit
