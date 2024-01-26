@@ -90,8 +90,8 @@ process TRANSFORM_READS {
     script:
         ref_base = bases_combination[0]
         alt_base = bases_combination[1]
-    
-    """
+
+         """
             # create lowercase ref and alt bases
                 ref_base_lower=\$(echo "${ref_base}" | tr '[:upper:]' '[:lower:]')
                 alt_base_lower=\$(echo "${alt_base}" | tr '[:upper:]' '[:lower:]')
@@ -122,6 +122,7 @@ process TRANSFORM_READS {
                 -v ref_base_upper="\${ref_base_upper}" -v alt_base_upper="\${alt_base_upper}" \
                 "\${awk_script}" "${unmapped_fastq[1]}" > "\${transformed_output_path_mate2}"
         """
+
 
 }
 
@@ -205,38 +206,35 @@ process SECOND_STAR_MAP{
 
     ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad Remove
     """
-    // # extract sample/s and sample_id
-    //         mate1=\${samples_list[j*${step}]
-    //         if [ ${params.pair_end} == 0 ]; then
-    //             mate2=''
-    //         else
-    //             mate2=\${samples_list[j*${step}+1]
-    //         fi
-    //         sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+}
+// 1. extract mates from second map SAM
+// 2. find the original sequence by comparing the id to the unmapped fastqs from the first map
 
-    //         echo "mate1: \${mate1}"
-    //         echo "mate2: \${mate2}"
-    //         echo "sample_id: \${sample_id}"
+process RETRANSFORM {
+    tag "re-transform: ${read}"
+    publishDir "${params.retransform_output_dir}", pattern: '*.{fq,fastq}', mode: 'copy'
+
+    input:
+    path read
+
+    output:
+    path re_transform_reads
+
+    // FLAG 99
+    
+    
+    
+    :read paired (0x1) read mapped in proper pair (0x2) mate reverse strand (0x20) first in pair (0x40)
+    // FLAG 147: ead paired (0x1) read mapped in proper pair (0x2) read reverse strand (0x10) second in pair (0x80)
+    script:
+    '''
+    samtools view /private10/Projects/Gili/HE_workdir/first_part/pre_analysis_test/second_map/A2C/SRR11548778/Aligned.out.bam | grep -E '^@|^[^@]' | cut -f1-2 > reads_id.txt
+    '''
+    
 }
 
-// process RETRANSFORM {
-//     tag "re-transform: ${read}"
-//     publishDir "${params.retransform_output_dir}", pattern: '*.{fq,fastq}', mode: 'copy'
-
-//     input:
-//     path read
-
-//     output:
-//     path re_transform_reads
-
-//     script:
-//     '''
-//     '''
-    
-// }
-// bases_combination=[['A','C'],['A','G'],['A','T'],['C','A'],['C','G'],['C','T'],['G','A'],['G','C'],['G','T'],['T','A'],['T','C'],['T','G']]
-// PE workflow
 workflow {
+
     //  Get file pairs channel of Samples' both mates
     Channel
         .fromFilePairs(params.PE_reads, checkIfExists: true)
@@ -244,7 +242,7 @@ workflow {
     FASTP(read_pairs_ch)
 
     // map the quality checked fastq into the basic index dir
-    unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0], params.genome_index_dir)
+    // unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0], params.genome_index_dir)
 
     // all the bases combinations (MM) the reads to be transformed accordinly
     Channel
@@ -284,25 +282,17 @@ workflow {
                                         .groupTuple(by:0)
                                         .map {tuple -> tuple[1]}
 
-    // tranformed_files_ch.view()
-    // 
+    // seperate the reads, genomes and indexes from the bases cmobination transformed files channel
     reads_channel_mount = tranformed_files_ch.map { tuple -> tuple[0].flatten() }
     genome_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
     index_channel_mount = tranformed_files_ch.map { tuple -> tuple[2] }
+
+    // map the transformed reads to the fitted transformed genome's index
     SECOND_STAR_MAP(reads_channel_mount, genome_channel_mount, index_channel_mount)
     SECOND_STAR_MAP.out[1].view()
-
-
-
-    // // get only transformed files
-    // reads_and_genomes_ch = temp_reads_and_genomes_ch.map {it -> it[1]}
-    // SECOND_STAR_MAP(reads_and_genomes_ch)
-    // // SECOND_STAR_MAP.out.view()
-
-    // Channel
-    //     .fromPath(params.transformed_indexes)
-    //     .set {index_ch}
-    // index_ch.view()
    
+   
+
+
 }
 

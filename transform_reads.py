@@ -1,24 +1,28 @@
 from Bio import SeqIO
 from Bio.Seq import Seq
+import sys
 
-def replace_a_with_g(sequence):
-    """Replace all 'A' with 'G' in a given sequence."""
-    return sequence.replace('A', 'G')
+# this function changed each ref_base to alt_base in all of the sequancec of a given FASTQ file 
+def process_fastq(input_file, output_file, ref_base, alt_base):
+    # get upper and lower case of the bases
+    lower_ref_base = str(ref_base).lower()
+    lower_alt_base = str(alt_base).lower()
 
-def process_fastq(input_file, output_file):
-    """Reads a FASTQ file, replaces 'A' with 'G' in each read, and writes to a new FASTQ file."""
+    upper_ref_base = str(ref_base).upper()
+    upper_alt_base = str(alt_base).upper()
+
     with open(input_file, 'r') as in_file, open(output_file, 'w') as out_file:
-        i=0
         for record in SeqIO.parse(in_file, 'fastq'):
-            i=i+1
-            record.seq = Seq((str(record.seq)).replace('A', 'G'))
+            record.seq = Seq((str(record.seq)).replace(lower_ref_base, lower_alt_base))
+            record.seq = Seq((str(record.seq)).replace(upper_ref_base, upper_alt_base))
             SeqIO.write(record, out_file, 'fastq')
-            if i==100:
-                break
+    
   
 
 if __name__ == "__main__":
-    input_fastq = "/private10/Projects/Gili/HE_workdir/first_part/SRA2/SRR11548778_1.fastq"  # Replace with your input FASTQ file
-    output_fastq = "SRR11548778_1_transformed.fastq"  # Replace with the desired output FASTQ file
+    input_fastq = sys.argv[1] 
+    output_fastq = sys.argv[2]
+    ref_base = sys.argv[3]
+    alt_base = sys.argv[4]
 
-    process_fastq(input_fastq, output_fastq)
+    process_fastq(input_fastq, output_fastq, ref_base, alt_base)
