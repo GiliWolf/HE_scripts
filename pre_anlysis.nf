@@ -220,12 +220,25 @@ process RETRANSFORM {
     output:
     path re_transform_reads
 
-    // FLAG 99
-    
-    
-    
-    :read paired (0x1) read mapped in proper pair (0x2) mate reverse strand (0x20) first in pair (0x40)
+    // FLAG 99:read paired (0x1) read mapped in proper pair (0x2) mate reverse strand (0x20) first in pair (0x40)
     // FLAG 147: ead paired (0x1) read mapped in proper pair (0x2) read reverse strand (0x10) second in pair (0x80)
+    /*
+    quay.io/biocontainers/pysam key functions:
+        get_query_names(self)
+        is_paired
+        is_read1
+        is_read2
+        is_reverse
+        mate_is_reverse
+        mate_is_unmapped
+        is_proper_pair ?
+        mapping_quality
+        query_alignment_sequence / query_sequence
+        query_name
+
+        pysam.FastxFile
+
+
     script:
     '''
     samtools view /private10/Projects/Gili/HE_workdir/first_part/pre_analysis_test/second_map/A2C/SRR11548778/Aligned.out.bam | grep -E '^@|^[^@]' | cut -f1-2 > reads_id.txt
