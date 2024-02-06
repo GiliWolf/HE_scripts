@@ -57,7 +57,7 @@ process FASTP{
 //  Mapping all the reads using STAR and the originial genome's index, 
 // in order to get the *unmapped* reads to further processing
 process FIRST_STAR_MAP{
- 
+    maxForks 1
     tag "1st MAP: ${genome_index}"
     publishDir "${params.first_map_output_dir}/${sample_id}", pattern: "*", mode: 'copy'
 
@@ -136,7 +136,7 @@ process TRANSFORM_READS {
 process SECOND_STAR_MAP{
     maxForks 1
     tag "2nd MAP: ${base_comb}"
-    publishDir "${params.second_map_output_dir}/${base_comb}", pattern: '*', mode: 'rellink'
+    publishDir "${params.second_map_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
     input:
         path(trans_fastqs)
@@ -144,8 +144,8 @@ process SECOND_STAR_MAP{
         path(trans_index_dir)
 
     output:
-        path('*')
-        stdout
+        path('*_Aligned.out*')
+        // stdout
 
     script:
     // number of samples- for PE: number of fastq files / 2, for SE: number of files
@@ -195,7 +195,7 @@ process SECOND_STAR_MAP{
             echo "sample_id: \${sample_id}"
         
             # mapping each sample in the background
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}/" &> run_\${sample_id} &
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}_${base_comb}_" &> run_\${sample_id} &
 
         done
 
@@ -209,16 +209,17 @@ process SECOND_STAR_MAP{
 }
 // 1. extract mates from second map SAM
 // 2. find the original sequence by comparing the id to the unmapped fastqs from the first map
-
 process RETRANSFORM {
-    tag "re-transform: ${read}"
-    publishDir "${params.retransform_output_dir}", pattern: '*.{fq,fastq}', mode: 'copy'
+    tag "re-transform: ${sample_id} : ${base_comb}"
+    publishDir "${params.retransform_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
     input:
-    path read
+    tuple val(sample_id), path(original_reads_dir), val(base_comb), path(bam_file)
+    path(python_script)
 
     output:
-    path re_transform_reads
+    stdout
+    // path re_transform_reads
 
     // FLAG 99:read paired (0x1) read mapped in proper pair (0x2) mate reverse strand (0x20) first in pair (0x40)
     // FLAG 147: ead paired (0x1) read mapped in proper pair (0x2) read reverse strand (0x10) second in pair (0x80)
@@ -237,12 +238,23 @@ process RETRANSFORM {
         query_name
 
         pysam.FastxFile
+    */
 
 
     script:
-    '''
-    samtools view /private10/Projects/Gili/HE_workdir/first_part/pre_analysis_test/second_map/A2C/SRR11548778/Aligned.out.bam | grep -E '^@|^[^@]' | cut -f1-2 > reads_id.txt
-    '''
+    outout_path = "${sample_id}_re-transformed.sam"
+    """
+    echo ${sample_id}
+    ls ${original_reads_dir}
+    echo ${base_comb}
+    echo ${bam_file}
+    echo ${python_script}
+
+    echo ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir}
+
+
+    """
+
     
 }
 
@@ -255,7 +267,7 @@ workflow {
     FASTP(read_pairs_ch)
 
     // map the quality checked fastq into the basic index dir
-    // unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0], params.genome_index_dir)
+    unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0], params.genome_index_dir)
 
     // all the bases combinations (MM) the reads to be transformed accordinly
     Channel
@@ -301,9 +313,28 @@ workflow {
     index_channel_mount = tranformed_files_ch.map { tuple -> tuple[2] }
 
     // map the transformed reads to the fitted transformed genome's index
-    SECOND_STAR_MAP(reads_channel_mount, genome_channel_mount, index_channel_mount)
-    SECOND_STAR_MAP.out[1].view()
-   
+    // collect anf faltten to get each file seperatelu and extract:
+    //      sample_id (get(0)), 
+    //      base_comb (get(1)).
+    //      sam file
+    mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, genome_channel_mount, index_channel_mount)
+                            .collect()
+                            .flatten()
+                            .map { file -> tuple(
+                                                file.name.toString().tokenize('_').get(0),
+                                                file.name.toString().tokenize('_').get(1),
+                                                file)}
+    // get the dirs of the original reads (output of the first map process) and extract:
+    //      sample id
+    //      file (directory)
+    Channel
+        .fromPath(params.original_reads, type:'dir')
+        .map {file -> tuple(file.name.toString(), file)}
+        .set {originial_reads_ch}
+
+    // combine the mapped transformed sam files with the original fastqs using the sample id as key
+    RETRANSFORM(originial_reads_ch.combine(mapped_transformed_ch, by:0), params.retransform_python_script)
+    RETRANSFORM.out.view()
    
 
 
