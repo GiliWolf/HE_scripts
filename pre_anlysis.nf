@@ -1,3 +1,33 @@
+/*
+----------------------------
+Author: Gili Wolf
+Date: 01-02-2024
+Affiliation: Levanon Lab
+----------------------------
+Description:
+    This script is the second part of the Hyper Editing tool, inspired by the work of Hagit T. Porath in 2014 ("A genome-wide map of hyper-edited RNA reveals numerous new sites", Nature Communications). The aim of this tool is to identify hyper-edited A2G clusters.
+
+    Similar to the original pipeline, the process involves aligning the samples to the original genome, then transforming the unmapped reads and mapping them again to the transformed genome. Finally, the second mapped reads are retransformed to their original sequence.
+
+Usage: 
+    nextflow -c PWD/pre_anylis.nf.config run PWD/pre_anlysis.nf
+
+Dependencies (using Docker containers):
+   - STAR aligner (version 2.7.10b)
+   - FASTP preprocessor (version 0.23.4)
+   - PYSAM python module (version: 0.22.0)
+
+ Hardware Requirements:
+   - Minimum RAM: ? GB
+   - Minimum CPU: ? cores
+
+ Additional Notes:
+   - 
+
+Disclaimer: This script is provided as-is without any warranty. Use at your own risk.
+----------------------------
+
+*/
 
 log.info'''
         HYPER-EDITING PRE-ANALYSIS:
@@ -10,7 +40,10 @@ log.info'''
         '''
 bases=['A','G','C','T']
 
-// FASTP preprocessing the reads, in order to remove lowquality reads
+
+/*
+    Preprocess the reads using FASTP to filter out low-quality reads.
+*/
 process FASTP{
     tag "preprocessing: ${sample_id}"
     publishDir "${params.fastp_output_dir}", pattern: '*.{fastq,json}', mode: 'copy'
@@ -54,8 +87,9 @@ process FASTP{
         """
 }
 
-//  Mapping all the reads using STAR and the originial genome's index, 
-// in order to get the *unmapped* reads to further processing
+/*
+    Map all the reads using STAR with the original genome's index to identify the unmapped reads for further processing.
+*/
 process FIRST_STAR_MAP{
     maxForks 1
     tag "1st MAP: ${genome_index}"
@@ -74,9 +108,10 @@ process FIRST_STAR_MAP{
         """
 }
 
-// Transform the unmapped reads 12 times for each possible non-equale base-pairs (for exmp- A>C, G>T...)
+/*
+    Transform the unmapped reads 12 times for each possible non-equal base-pair substitution (e.g., A>C, G>T, etc.).
+*/
 process TRANSFORM_READS {
-
     tag "${ref_base} >> ${alt_base} transform on ${sample_id}"
     publishDir "${params.transform_output_dir}/${ref_base}2${alt_base}", pattern: '*.fastq', mode: 'copy'
 
@@ -126,13 +161,13 @@ process TRANSFORM_READS {
 
 }
 
-// This process operates on one base combination (MM) at a time (A2C, C2A, T2G, ...).
-// It takes in the transformed index of a certain base combination and all the
-//  transformed fastq files of the same combination.
-// The process then maps each sample to the index using internal bash parallel processing.
-// The code structure is inspired by Itamar Twersky's STAR_load_and_alignment_all process
-//  in the star.nf file from Erez Lebanon's Lab in 2023.
-
+/*
+    This process operates on one base combination (MM) at a time (A2C, C2A, T2G, ...).
+    It takes in the transformed index of a certain base combination and all the transformed fastq files of the same combination.
+    The process then maps each sample to the index using internal bash parallel processing.
+    The code structure is inspired by Itamar Twersky's STAR_load_and_alignment_all process
+    in the star.nf file from Erez Lebanon's Lab in 2023.
+*/
 process SECOND_STAR_MAP{
     maxForks 1
     tag "2nd MAP: ${base_comb}"
@@ -207,53 +242,34 @@ process SECOND_STAR_MAP{
     ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad Remove
     """
 }
-// 1. extract mates from second map SAM
-// 2. find the original sequence by comparing the id to the unmapped fastqs from the first map
+
+/*
+    This process utilizes an external Python script to retrieve the original sequences of the mapped reads.
+    Algorithm: 
+        1. Extract read IDs and original sequences from each mate's original FASTQ files (in the original_reads_dir).
+        2. Iterate over each transformed mapped read in the SAM file:
+            a) Check if the SAM read is mate1/mate2.
+            b) Find a matching original FASTQ read from step 1.
+            c) Get the original sequence and write the SAM read with the original sequence to the output file.
+*/
 process RETRANSFORM {
-    tag "re-transform: ${sample_id} : ${base_comb}"
-    publishDir "${params.retransform_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
+        tag "re-transform: ${sample_id} : ${base_comb}"
+        publishDir "${params.retransform_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
     input:
-    tuple val(sample_id), path(original_reads_dir), val(base_comb), path(bam_file)
-    path(python_script)
+        tuple val(sample_id), path(original_reads_dir), val(base_comb), path(bam_file)
+        path(python_script)
 
     output:
-    stdout
-    // path re_transform_reads
-
-    // FLAG 99:read paired (0x1) read mapped in proper pair (0x2) mate reverse strand (0x20) first in pair (0x40)
-    // FLAG 147: ead paired (0x1) read mapped in proper pair (0x2) read reverse strand (0x10) second in pair (0x80)
-    /*
-    quay.io/biocontainers/pysam key functions:
-        get_query_names(self)
-        is_paired
-        is_read1
-        is_read2
-        is_reverse
-        mate_is_reverse
-        mate_is_unmapped
-        is_proper_pair ?
-        mapping_quality
-        query_alignment_sequence / query_sequence
-        query_name
-
-        pysam.FastxFile
-    */
+        path('*')
 
 
     script:
-    outout_path = "${sample_id}_re-transformed.sam"
-    """
-    echo ${sample_id}
-    ls ${original_reads_dir}
-    echo ${base_comb}
-    echo ${bam_file}
-    echo ${python_script}
-
-    echo ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir}
-
-
-    """
+        outout_path = "${sample_id}_re-transformed.sam"
+        """
+        ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir}
+        
+        """
 
     
 }
@@ -333,10 +349,9 @@ workflow {
         .set {originial_reads_ch}
 
     // combine the mapped transformed sam files with the original fastqs using the sample id as key
+    // and retransform the sequences of the mapped bam to the originak sequences
     RETRANSFORM(originial_reads_ch.combine(mapped_transformed_ch, by:0), params.retransform_python_script)
     RETRANSFORM.out.view()
-   
-
-
+ 
 }
 

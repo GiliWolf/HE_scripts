@@ -1,12 +1,36 @@
 """
 Author: Gili Wolf
 Date: 01-02-2024
+Levanon Lab
 ----------------------------
 This script is designed to recover the original sequences from one or two Fastq files (for paired-end sequencing) 
 and insert them into the aligned sequences of a BAM file, which contained transformed sequences.
 
 Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory>
+
+algo: 
+    1. extract reads_id and original sequences from each mate's original fastqs (in the original_reads_dir)
+    2. iterate over each transformed mapped read in the sam file:
+        a) check if the SAM read is mate1/mate2
+        b) find matching original fastq read from (1)
+        c) get original sequence and write the SAM read with the original sequence to the output file 
 """
+
+    # quay.io/biocontainers/pysam key functions:
+    #     get_query_names(self)
+    #     is_paired
+    #     is_read1
+    #     is_read2
+    #     is_reverse
+    #     mate_is_reverse
+    #     mate_is_unmapped
+    #     is_proper_pair ?
+    #     mapping_quality
+    #     query_alignment_sequence / query_sequence
+    #     query_name
+
+    #     pysam.FastxFile
+
 
 import pysam
 import sys
@@ -29,12 +53,12 @@ mate1_seqs = {}
 mate2_seqs = {}
 
 # Open mate1's unmapped Fastq original file and store all its read names in a set
-with pysam.FastxFile(original_mate_1) as mate1:
+with pysam.FastxFile(os.path.join(fastq_directory, original_mate_1)) as mate1:
     for read in mate1:
         mate1_seqs[read.name] = read.sequence
 
 # Open mate2's unmapped Fastq original file and store all its read names in a set
-with pysam.FastxFile(original_mate_2) as mate2:
+with pysam.FastxFile(os.path.join(fastq_directory, original_mate_2)) as mate2:
     for read in mate2:
         mate2_seqs[read.name] = read.sequence
 
