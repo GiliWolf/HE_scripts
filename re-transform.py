@@ -6,7 +6,7 @@ Levanon Lab
 This script is designed to recover the original sequences from one or two Fastq files (for paired-end sequencing) 
 and insert them into the aligned sequences of a BAM file, which contained transformed sequences.
 
-Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory>
+Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory> <pair_end>
 
 algo: 
     1. extract reads_id and original sequences from each mate's original fastqs (in the original_reads_dir)
@@ -36,31 +36,50 @@ import pysam
 import sys
 import os
 
+# Check if correct number of command-line arguments are provided
+if len(sys.argv) != 5:
+    print("Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory> <pair_end>")
+    sys.exit(1)
+
 # arguments:
 input_sam_file = sys.argv[1] 
 output_sam_file = sys.argv[2]
 fastq_directory = sys.argv[3]
+pair_end = int(sys.argv[4]) # SE: 0; PE:1
+
+save = pysam.set_verbosity(0)
+
+# # Create index file for the input SAM/BAM file
+# input_index_file = input_sam_file + ".bai"
+# if not os.path.exists(input_index_file):
+#     pysam.index(input_sam_file)
 
 # List all files in the directory
 files = os.listdir(fastq_directory)
 
 # Filter files ending with "mate1" and "mate2"
 original_mate_1 = next((f for f in files if f.endswith("mate1")), None)
-original_mate_2 = next((f for f in files if f.endswith("mate2")), None)
+original_mate_2 = None
+if (pair_end):
+    original_mate_2 = next((f for f in files if f.endswith("mate2")), None)
 
 # Create a dictonary to store the read names (as keys) and sequences (as value) from mate1 and mate 2 Fastqs
 mate1_seqs = {}
 mate2_seqs = {}
 
+print(os.path.join(fastq_directory, original_mate_1))
+
 # Open mate1's unmapped Fastq original file and store all its read names in a set
 with pysam.FastxFile(os.path.join(fastq_directory, original_mate_1)) as mate1:
+    pysam.set_verbosity(save)
     for read in mate1:
         mate1_seqs[read.name] = read.sequence
 
-# Open mate2's unmapped Fastq original file and store all its read names in a set
-with pysam.FastxFile(os.path.join(fastq_directory, original_mate_2)) as mate2:
-    for read in mate2:
-        mate2_seqs[read.name] = read.sequence
+if (pair_end):
+    # Open mate2's unmapped Fastq original file and store all its read names in a set
+    with pysam.FastxFile(os.path.join(fastq_directory, original_mate_2)) as mate2:
+        for read in mate2:
+            mate2_seqs[read.name] = read.sequence
 
 # change the read seq (from sam file) to the seq extracted from the same mate's fastq file, based on read's name 
 def getOriginal(read, seq_dict):
@@ -82,11 +101,12 @@ def getOriginal(read, seq_dict):
 with pysam.AlignmentFile(input_sam_file, "rb") as samfile:
     # Open a new SAM file for writing
     with pysam.AlignmentFile(output_sam_file, "wh", header=samfile.header) as output_sam:
+        pysam.set_verbosity(save)
         # for each read in the sam file
         for read in samfile:
             # get original read of mate1
             if read.is_read1: 
                 getOriginal(read, mate1_seqs)
-            # get original read of mate2
-            if read.is_read2: 
+            # get original read of mate2 (if pair_end == 1)
+            if read.is_read2 and pair_end: 
                 getOriginal(read, mate2_seqs)
