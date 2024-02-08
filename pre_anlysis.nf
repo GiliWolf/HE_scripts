@@ -217,14 +217,14 @@ process SECOND_STAR_MAP{
 
     output:
         path('*_Aligned.out*')
-        stdout
+        // stdout
 
     script:
     // number of samples- for PE: (number of fastq files / 2), for SE: number of files
     num_of_samples = params.pair_end ? trans_fastqs.collect().size()/2 : trans_fastqs.collect().size()
     // base combination (MM): first part o fthe index dir name 
     // ( for example: A2C_transformed_hg38.fa_index -> A2C)
-    base_comb = trans_index_dir.name.toString().tokenize('_').get(0)
+    base_comb = trans_index_dir.name.toString().tokenize(params.file_name_seperator).get(0)
     // number of files to be mapped each time- PE: 2, SE:1 
     step = params.pair_end ? 2 : 1
 
@@ -260,7 +260,7 @@ process SECOND_STAR_MAP{
             else
                 mate2=\${samples_list[j*${step}+1]}
             fi
-            # sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+            # sample_id=\$(echo "\${mate1}" | cut -dparams.file_name_seperator -f2)
             sample_id=\$(echo "\${mate1}" | awk -F '[_.]' '{print \$2}')
 
             echo "mate1: \${mate1}"
@@ -335,13 +335,13 @@ workflow {
     // trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
     //                 // .collect(flat: false)
     //                 .map { it ->
-    //                         def prefix = it[0].name.toString().tokenize('_').get(0)
+    //                         def prefix = it[0].name.toString().tokenize(params.file_name_seperator).get(0)
     //                         return tuple(prefix, [it[0], it[1]])}
     //                 .groupTuple(by:0)
     // // get all tramsformed genome and extract prefix - ref_base2alt_base, and map it to the file
     // Channel
     //     .fromPath(params.transformed_genomes)
-    //     .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
+    //     .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
     //     .set {transformed_genomes_ch}
     
     // // transformed_genomes_ch.view()
@@ -350,7 +350,7 @@ workflow {
     // // make touples of [base_combination, [index_files]]
     // Channel
     //     .fromPath(params.transformed_indexes, type: 'dir')
-    //     .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
+    //     .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
     //     .groupTuple(by: 0)
     //     .set {transformed_index_ch}
     
@@ -377,8 +377,8 @@ workflow {
     //                         .collect()
     //                         .flatten()
     //                         .map { file -> tuple(
-    //                                             file.name.toString().tokenize('_').get(0),
-    //                                             file.name.toString().tokenize('_').get(1),
+    //                                             file.name.toString().tokenize(params.file_name_seperator).get(0),
+    //                                             file.name.toString().tokenize(params.file_name_seperator).get(1),
     //                                             file)}
     // // get the dirs of the original reads (output of the first map process) and extract:
     // //      sample id
@@ -422,23 +422,22 @@ workflow {
     if (params.pair_end == 0)                         //SE
         trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
                         .map { file ->
-                                def prefix = file.name.toString().tokenize('_').get(0)
+                                def prefix = file.name.toString().tokenize(params.file_name_seperator).get(0)
                                 return tuple(prefix, file)}
                         .groupTuple(by:0)
     else //PE
         trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
                         .map { it ->
-                                def prefix = it[0].name.toString().tokenize('_').get(0)
+                                def prefix = it[0].name.toString().tokenize(params.file_name_seperator).get(0)
                                 return tuple(prefix, [it[0], it[1]])}
                         .groupTuple(by:0)
     
-    // transformed_genomes_ch.view()
     // get all tramsformed indexes' files
     // extract prefix - <ref_base>2<alt_base>, and map it to the files
     // make touples of [base_combination, index_dir]
     Channel
         .fromPath(params.transformed_indexes, type: 'dir')
-        .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
+        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
         .groupTuple(by: 0)
         .set {transformed_index_ch}
 
@@ -457,17 +456,29 @@ workflow {
 
     // map the transformed reads to the fitted transformed genome's index
     // collect and faltten to get each file seperated and extract:
-    //      sample_id (get(0)), 
-    //      base_comb (get(1)).
-    //      sam file
+    //      1) sample_id (get(0)), 
+    //      2) base_comb (get(1)).
+    //      3) sam file
     mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
                             .collect()
                             .flatten()
                             .map { file -> tuple(
-                                                file.name.toString().tokenize('_').get(0),
-                                                file.name.toString().tokenize('_').get(1),
-                                                file)}
-    
-    mapped_transformed_ch.view()
+                                                 file.name.toString().tokenize(params.file_name_seperator).get(0),
+                                                 file.name.toString().tokenize(params.file_name_seperator).get(1),
+                                                 file)}
+
+    // get the dirs of the original reads (output of the first map process) and extract:
+    //      1) sample id
+    //      2) file (directory)
+    Channel
+        .fromPath(params.original_reads, type:'dir')
+        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
+        .set {originial_reads_ch}
+    // combine the mapped transformed sam files with the original fastqs using the sample id as key
+    // and retransform the sequences of the mapped bam to the original sequences
+    files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
+    files_to_retransform_ch.view()
+    // RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
+    // RETRANSFORM.out.view()
 }
 
