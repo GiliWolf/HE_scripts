@@ -6,7 +6,7 @@ Levanon Lab
 This script is designed to recover the original sequences from one or two Fastq files (for paired-end sequencing) 
 and insert them into the aligned sequences of a BAM file, which contained transformed sequences.
 
-Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory> <pair_end>
+Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory> <pair_end[0/1]>
 
 algo: 
     1. extract reads_id and original sequences from each mate's original fastqs (in the original_reads_dir)
@@ -38,7 +38,7 @@ import os
 
 # Check if correct number of command-line arguments are provided
 if len(sys.argv) != 5:
-    print("Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory> <pair_end>")
+    print("Usage: python re-transform.py <sam_file> <output_path> <original_fastq_directory> <pair_end[0/1]>")
     sys.exit(1)
 
 # arguments:
@@ -47,7 +47,9 @@ output_sam_file = sys.argv[2]
 fastq_directory = sys.argv[3]
 pair_end = int(sys.argv[4]) # SE: 0; PE:1
 
-save = pysam.set_verbosity(0)
+if pair_end != 0 and pair_end != 1:
+    print("pair end flag value should be 0/1")
+    sys.exit(1)
 
 # # Create index file for the input SAM/BAM file
 # input_index_file = input_sam_file + ".bai"
@@ -67,11 +69,8 @@ if (pair_end):
 mate1_seqs = {}
 mate2_seqs = {}
 
-print(os.path.join(fastq_directory, original_mate_1))
-
 # Open mate1's unmapped Fastq original file and store all its read names in a set
 with pysam.FastxFile(os.path.join(fastq_directory, original_mate_1)) as mate1:
-    pysam.set_verbosity(save)
     for read in mate1:
         mate1_seqs[read.name] = read.sequence
 
@@ -101,12 +100,15 @@ def getOriginal(read, seq_dict):
 with pysam.AlignmentFile(input_sam_file, "rb") as samfile:
     # Open a new SAM file for writing
     with pysam.AlignmentFile(output_sam_file, "wh", header=samfile.header) as output_sam:
-        pysam.set_verbosity(save)
         # for each read in the sam file
         for read in samfile:
-            # get original read of mate1
-            if read.is_read1: 
+            if pair_end:
+                # get original read of mate1
+                if read.is_read1: 
+                    getOriginal(read, mate1_seqs)
+                # get original read of mate2 (if pair_end == 1)
+                if read.is_read2: 
+                    getOriginal(read, mate2_seqs)
+            else:
                 getOriginal(read, mate1_seqs)
-            # get original read of mate2 (if pair_end == 1)
-            if read.is_read2 and pair_end: 
-                getOriginal(read, mate2_seqs)
+

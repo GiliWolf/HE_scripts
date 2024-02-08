@@ -221,7 +221,7 @@ process SECOND_STAR_MAP{
 
     script:
     // number of samples- for PE: (number of fastq files / 2), for SE: number of files
-    num_of_samples = params.pair_end ? trans_fastqs.size()/2 : trans_fastqs.size()
+    num_of_samples = params.pair_end ? trans_fastqs.collect().size()/2 : trans_fastqs.collect().size()
     // base combination (MM): first part o fthe index dir name 
     // ( for example: A2C_transformed_hg38.fa_index -> A2C)
     base_comb = trans_index_dir.name.toString().tokenize('_').get(0)
@@ -260,7 +260,8 @@ process SECOND_STAR_MAP{
             else
                 mate2=\${samples_list[j*${step}+1]}
             fi
-            sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+            # sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+            sample_id=\$(echo "\${mate1}" | awk -F '[_.]' '{print \$2}')
 
             echo "mate1: \${mate1}"
             echo "mate2: \${mate2}"
@@ -277,7 +278,9 @@ process SECOND_STAR_MAP{
     done
 
     ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad Remove
+
     """
+    
 }
 
 /*
@@ -304,7 +307,7 @@ process RETRANSFORM {
     script:
         outout_path = "${sample_id}_re-transformed.sam"
         """
-        ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir}
+        ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir} ${params.pair_end}
         
         """
 
@@ -457,8 +460,14 @@ workflow {
     //      sample_id (get(0)), 
     //      base_comb (get(1)).
     //      sam file
-    SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
-
-    SECOND_STAR_MAP.out[1].view()
+    mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
+                            .collect()
+                            .flatten()
+                            .map { file -> tuple(
+                                                file.name.toString().tokenize('_').get(0),
+                                                file.name.toString().tokenize('_').get(1),
+                                                file)}
+    
+    mapped_transformed_ch.view()
 }
 
