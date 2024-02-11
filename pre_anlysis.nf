@@ -28,6 +28,7 @@ Disclaimer: This script is provided as-is without any warranty. Use at your own 
 ----------------------------
 
 */
+params.help=false
 
 log.info'''
         HYPER-EDITING PRE-ANALYSIS:
@@ -40,6 +41,78 @@ log.info'''
         '''
 bases=['A','G','C','T']
 
+def helpMessage() {
+    log.info '''
+        usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf &
+        * for running in baskground:
+          nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf
+        * for help mesage: nextflow -c run pre_anlysis.nf --help
+
+        options:
+        ---------------
+                --help              displayes help message             
+        ---------------
+        input file parameters 
+                -pair_end			pair end flag (0:SE, 1:PE)
+                -reads_dir= 			samples' directory
+                -reads_suffix=			suffixs of the samples' files (default-".fastq")
+                -file_name_seperator=		seperator of the file's name companats (default- '_')
+                -mate_suffix			suffix of both mates (default- "_")
+                -mate1_suff			suffix of mate1 (default- "1")
+                -mate2_suff			suffix of mate2 (default- "2")
+        ---------------
+        output dirs parameters
+                -outdir				path for the output directory (relative path preferred)
+                -fastp_output_dir		path for the output of the fastp process (default- "${params.outdir}/fastp")
+                -first_map_output_dir		path for the output of the first map process
+                                                (default-"${params.outdir}/first_map")
+                -transform_output_dir		path for the output of the transform reads process 
+                                                (default-"${params.outdir}/transformed_unmapped")
+                -second_map_output_dir		path for the output of the second map process
+                                                (default- "${params.outdir}/second_map")
+                -retransform_output_dir		path for the output of the second map process
+                                                (default- "${params.outdir}/re-transform")
+        ---------------
+        Fastp parameters
+                -N_bases_num			maximum number of N bases in a read (default- 5)
+                -avg_quality			minimum average quality score of a read (default- 30)
+                -low_quality_per 		minimum percentage of bases allowed to be unqualified (default- 20)
+                -low_quality_num		minimum quality value that a base is qualified, Phred score (default- 25)
+        ---------------
+        first map parameters
+                -fastp_output_suffix		suffix of the unmapped files (default - ".processed.fastq")
+                -read_files_command		command line to execute for each of the input file (default - "cat")
+                -genome_index_dir		path to the genome's index directory
+                -SAM_attr			desired SAM attributes (default - "All")
+                -outSAMtype			type of the output mapped files (default - "BAM Unsorted")
+                -min_SJ_overhang		minimum overhang (i.e. block size) for spliced alignments (default -8)
+                -max_intron_size		maximum intron length (dafault value for STAR and HE- 1000000)
+                -max_mates_gap			maximum genomic distance between mates (default -600000)
+                -max_mismatches_ratio_to_ref	max ratio of mismatches to *mapped* length (dafault value for STAR and HE- 3)
+                -max_mismatche_ratio_to_read	max ratio of mismatches to *read* length (dafault value for STAR and HE- 1)
+                -norm_num_of_matches		min number of matched bases normalized to the read length
+                                                (sum of mates’ lengths for PE reads) (dafault value for STAR and HE- 0.66)
+                -max_num_of_allignment		max number of multiple alignments allowed for a read, if exceeded->unmapped (default - 1)
+                -genome_load_set		genome shared memory is not used (dafault value for STAR and HE-"NoSharedMemory")
+                -num_of_threads			number of threads for each mapping process (dafault - 5)
+                -unmapped_out_files		unmapped reads will be output into separate file(s)Unmapped.out.mate1[2],
+                                            formatted the same way as -input read files (default - Fastx")
+                -output_files_permissions	file permissions (dafault - "All_RWX")
+        ---------------
+        second map parameters
+        general:
+                -transformed_indexes		path to the directory of the transformed genome indexes from HE part 1
+                                                (for example - "/generic_transform/hg38transform/genome_indexing/*")
+        STAR parameters:
+                -STAR_MAX_PARALLEL		number of files to be mapped parallely (dafault - 6)
+                -second_map_genome_load_set	controls how the genome is loaded into memory (dafault -"LoadAndKeep")
+        ---------------
+        retransform parameters
+                -original_reads			path to the original fastq files (default - extracts from first_map_output_dir)
+                -filter_sam_files		STAR output files to be output (default - '*Aligned.out*')
+    '''
+    .stripIndent()
+}
 
 /*
     Preprocess the reads using FASTP to filter out low-quality reads.
@@ -57,34 +130,36 @@ process FASTP{
 
 
     script:
-        """
-        # run fastp on each sample
+
+        if (params.pair_end == 0)
+            """
             # SE (run on all files ending with the reads suffixs)
-            if [ $params.pair_end = 0 ]; then
-                    ${params.fastp_command} \
-                    -n ${params.N_bases_num} \
-                    -e ${params.avg_quality} \
-                    -u ${params.low_quality_per} \
-                    -q ${params.low_quality_num} \
-                    -j "${sample_id}.fastp.json" \
-                    --dont_eval_duplication \
-                    --in1 "${reads}" \
-                    -o "${sample_id}.processed.fastq"
-            else
-            #PE (run on all 1st mate files, and change the mate suffixs for 2nd mate)
-                    ${params.fastp_command} \
-                    -n ${params.N_bases_num} \
-                    -e ${params.avg_quality} \
-                    -u ${params.low_quality_per} \
-                    -q ${params.low_quality_num} \
-                    -j "${sample_id}.fastp.json" \
-                    --dont_eval_duplication \
-                    --in1 ${reads[0]} \
-                    -o "${sample_id}_1.processed.fastq" \
-                    --in2 ${reads[1]} \
-                    -O "${sample_id}_2.processed.fastq"
-            fi
-        """
+                        ${params.fastp_command} \
+                        -n ${params.N_bases_num} \
+                        -e ${params.avg_quality} \
+                        -u ${params.low_quality_per} \
+                        -q ${params.low_quality_num} \
+                        -j "${sample_id}.fastp.json" \
+                        --dont_eval_duplication \
+                        --in1 "${reads}" \
+                        -o "${sample_id}.processed.fastq"
+            """
+        
+        else
+            """
+                #PE (run on all 1st mate files, and change the mate suffixs for 2nd mate)
+                        ${params.fastp_command} \
+                        -n ${params.N_bases_num} \
+                        -e ${params.avg_quality} \
+                        -u ${params.low_quality_per} \
+                        -q ${params.low_quality_num} \
+                        -j "${sample_id}.fastp.json" \
+                        --dont_eval_duplication \
+                        --in1 ${reads[0]} \
+                        -o "${sample_id}_1.processed.fastq" \
+                        --in2 ${reads[1]} \
+                        -O "${sample_id}_2.processed.fastq"
+            """
 }
 
 /*
@@ -92,7 +167,7 @@ process FASTP{
 */
 process FIRST_STAR_MAP{
     maxForks 1
-    tag "1st MAP: ${genome_index}"
+    tag "1st MAP: ${sample_id}"
     publishDir "${params.first_map_output_dir}/${sample_id}", pattern: "*", mode: 'copy'
 
     input:
@@ -101,11 +176,19 @@ process FIRST_STAR_MAP{
 
     output:
         tuple val(sample_id), path('*Unmapped*')
+        // stdout
 
     script:
-        """
-        ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq[0]} ${fastq[1]} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
-        """
+
+        if (params.pair_end == 0)   //SE
+            """
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
+            """
+        else                        //PE
+            """
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq[0]} ${fastq[1]} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
+            """
+
 }
 
 /*
@@ -126,37 +209,65 @@ process TRANSFORM_READS {
         ref_base = bases_combination[0]
         alt_base = bases_combination[1]
 
-         """
-            # create lowercase ref and alt bases
-                ref_base_lower=\$(echo "${ref_base}" | tr '[:upper:]' '[:lower:]')
-                alt_base_lower=\$(echo "${alt_base}" | tr '[:upper:]' '[:lower:]')
+        if (params.pair_end == 0)   //SE
+            """
+                # create lowercase ref and alt bases
+                    ref_base_lower=\$(echo "${ref_base}" | tr '[:upper:]' '[:lower:]')
+                    alt_base_lower=\$(echo "${alt_base}" | tr '[:upper:]' '[:lower:]')
 
-            # create uppercase ref and alt bases
-                ref_base_upper=\$(echo "${ref_base}" | tr '[:lower:]' '[:upper:]')
-                alt_base_upper=\$(echo "${alt_base}" | tr '[:lower:]' '[:upper:]')
-            
-            # create output path for each mate
-                transformed_output_path_mate1="${ref_base}2${alt_base}_${sample_id}_1.fastq"
-                transformed_output_path_mate2="${ref_base}2${alt_base}_${sample_id}_2.fastq"
-        
-            # generic awk script for each mate
-                awk_script='
-                    NR%4==2 {
-                        gsub(ref_base_lower, alt_base_lower);
-                        gsub(ref_base_upper, alt_base_upper)
-                    } 1
-                '
-
-            # transform 1st mate 
-                awk -v ref_base_lower="\${ref_base_lower}" -v alt_base_lower="\${alt_base_lower}" \
-                -v ref_base_upper="\${ref_base_upper}" -v alt_base_upper="\${alt_base_upper}" \
-                "\${awk_script}" "${unmapped_fastq[0]}" > "\${transformed_output_path_mate1}"
+                # create uppercase ref and alt bases
+                    ref_base_upper=\$(echo "${ref_base}" | tr '[:lower:]' '[:upper:]')
+                    alt_base_upper=\$(echo "${alt_base}" | tr '[:lower:]' '[:upper:]')
                 
-            # transform 2nd mate
-                awk -v ref_base_lower="\${ref_base_lower}" -v alt_base_lower="\${alt_base_lower}" \
-                -v ref_base_upper="\${ref_base_upper}" -v alt_base_upper="\${alt_base_upper}" \
-                "\${awk_script}" "${unmapped_fastq[1]}" > "\${transformed_output_path_mate2}"
-        """
+                # create output path
+                    transformed_output_path="${ref_base}2${alt_base}_${sample_id}.fastq"
+            
+                # generic awk script for each mate
+                    awk_script='
+                        NR%4==2 {
+                            gsub(ref_base_lower, alt_base_lower);
+                            gsub(ref_base_upper, alt_base_upper)
+                        } 1
+                    '
+
+                # transform
+                    awk -v ref_base_lower="\${ref_base_lower}" -v alt_base_lower="\${alt_base_lower}" \
+                    -v ref_base_upper="\${ref_base_upper}" -v alt_base_upper="\${alt_base_upper}" \
+                    "\${awk_script}" "${unmapped_fastq}" > "\${transformed_output_path}"
+            """
+
+        else                        //PE
+            """
+                # create lowercase ref and alt bases
+                    ref_base_lower=\$(echo "${ref_base}" | tr '[:upper:]' '[:lower:]')
+                    alt_base_lower=\$(echo "${alt_base}" | tr '[:upper:]' '[:lower:]')
+
+                # create uppercase ref and alt bases
+                    ref_base_upper=\$(echo "${ref_base}" | tr '[:lower:]' '[:upper:]')
+                    alt_base_upper=\$(echo "${alt_base}" | tr '[:lower:]' '[:upper:]')
+                
+                # create output path for each mate
+                    transformed_output_path_mate1="${ref_base}2${alt_base}_${sample_id}_1.fastq"
+                    transformed_output_path_mate2="${ref_base}2${alt_base}_${sample_id}_2.fastq"
+            
+                # generic awk script for each mate
+                    awk_script='
+                        NR%4==2 {
+                            gsub(ref_base_lower, alt_base_lower);
+                            gsub(ref_base_upper, alt_base_upper)
+                        } 1
+                    '
+
+                # transform 1st mate 
+                    awk -v ref_base_lower="\${ref_base_lower}" -v alt_base_lower="\${alt_base_lower}" \
+                    -v ref_base_upper="\${ref_base_upper}" -v alt_base_upper="\${alt_base_upper}" \
+                    "\${awk_script}" "${unmapped_fastq[0]}" > "\${transformed_output_path_mate1}"
+                    
+                # transform 2nd mate
+                    awk -v ref_base_lower="\${ref_base_lower}" -v alt_base_lower="\${alt_base_lower}" \
+                    -v ref_base_upper="\${ref_base_upper}" -v alt_base_upper="\${alt_base_upper}" \
+                    "\${awk_script}" "${unmapped_fastq[1]}" > "\${transformed_output_path_mate2}"
+            """
 
 
 }
@@ -175,7 +286,6 @@ process SECOND_STAR_MAP{
 
     input:
         path(trans_fastqs)
-        path(trans_genome)
         path(trans_index_dir)
 
     output:
@@ -183,11 +293,11 @@ process SECOND_STAR_MAP{
         // stdout
 
     script:
-    // number of samples- for PE: number of fastq files / 2, for SE: number of files
-    num_of_samples = params.pair_end ? trans_fastqs.size()/2 : trans_fastqs.size()
+    // number of samples- for PE: (number of fastq files / 2), for SE: number of files
+    num_of_samples = params.pair_end ? trans_fastqs.collect().size()/2 : trans_fastqs.collect().size()
     // base combination (MM): first part o fthe index dir name 
     // ( for example: A2C_transformed_hg38.fa_index -> A2C)
-    base_comb = trans_index_dir.name.toString().tokenize('_').get(0)
+    base_comb = trans_index_dir.name.toString().tokenize(params.file_name_seperator).get(0)
     // number of files to be mapped each time- PE: 2, SE:1 
     step = params.pair_end ? 2 : 1
 
@@ -197,7 +307,7 @@ process SECOND_STAR_MAP{
     ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad LoadAndExit
     echo 'finished loading'
 
-    # MODIFY FASQS FILES INTO A BASH LIST:  
+    # MODIFY FASTQS FILES INTO A BASH LIST:  
         # transform fastq file's names into string
         fastqs_string="${trans_fastqs}"
         # Split the string into a list
@@ -223,7 +333,8 @@ process SECOND_STAR_MAP{
             else
                 mate2=\${samples_list[j*${step}+1]}
             fi
-            sample_id=\$(echo "\${mate1}" | cut -d'_' -f2)
+            # sample_id=\$(echo "\${mate1}" | cut -dparams.file_name_seperator -f2)
+            sample_id=\$(echo "\${mate1}" | awk -F '[_.]' '{print \$2}')
 
             echo "mate1: \${mate1}"
             echo "mate2: \${mate2}"
@@ -240,7 +351,9 @@ process SECOND_STAR_MAP{
     done
 
     ${params.STAR_command} --genomeDir ${trans_index_dir} --genomeLoad Remove
+
     """
+    
 }
 
 /*
@@ -267,22 +380,37 @@ process RETRANSFORM {
     script:
         outout_path = "${sample_id}_re-transformed.sam"
         """
-        ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir}
+        ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir} ${params.pair_end}
         
         """
 
     
 }
 
-workflow {
+workflow {  
+    // print help message and exit if there is -help flag
+    if(params.help){
+        helpMessage()
+        System.exit(1)
+    }
 
-    //  Get file pairs channel of Samples' both mates
-    Channel
+    // GET SAMPLES:
+    if (params.pair_end == 0)                         //SE
+        Channel
+            .fromPath(params.SE_reads, checkIfExists: true)
+            .map {file -> tuple (file.baseName, file)}
+            .set {samples_ch}
+    else if (params.pair_end == 1)                    //PE
+        Channel
         .fromFilePairs(params.PE_reads, checkIfExists: true)
-        .set {read_pairs_ch} 
-    FASTP(read_pairs_ch)
+        .set {samples_ch} 
+    else             // raise error if pair_end flag != 0/1
+        error "----------------\n error: pair_end flag must be 0/1\n----------------"
 
-    // map the quality checked fastq into the basic index dir
+    // preprocess samples with fastp
+    FASTP(samples_ch)
+
+    // get unmapped reads for each sample from the first star map
     unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0], params.genome_index_dir)
 
     // all the bases combinations (MM) the reads to be transformed accordinly
@@ -291,67 +419,67 @@ workflow {
         .set {bases_combination_ch}
 
     // Transform all of the unmapped reads recieved from FIRST_STAR_MAP (12 different bases combination)
-    // group by the base combination and collect (wait) for all
-    trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
-                    // .collect(flat: false)
-                    .map { it ->
-                            def prefix = it[0].name.toString().tokenize('_').get(0)
-                            return tuple(prefix, [it[0], it[1]])}
-                    .groupTuple(by:0)
-    // get all tramsformed genome and extract prefix - ref_base2alt_base, and map it to the file
-    Channel
-        .fromPath(params.transformed_genomes)
-        .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
-        .set {transformed_genomes_ch}
+    // group by the base combination
+    if (params.pair_end == 0)                         //SE
+        trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
+                        .map { file ->
+                                def prefix = file.name.toString().tokenize(params.file_name_seperator).get(0)
+                                return tuple(prefix, file)}
+                        .groupTuple(by:0)
+    else //PE
+        trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
+                        .map { it ->
+                                def prefix = it[0].name.toString().tokenize(params.file_name_seperator).get(0)
+                                return tuple(prefix, [it[0], it[1]])}
+                        .groupTuple(by:0)
     
-    // transformed_genomes_ch.view()
     // get all tramsformed indexes' files
-    // extract prefix - ref_base2alt_base, and map it to the files
-    // make touples of [base_combination, [index_files]]
+    // extract prefix - <ref_base>2<alt_base>, and map it to the files
+    // make touples of [base_combination, index_dir]
     Channel
         .fromPath(params.transformed_indexes, type: 'dir')
-        .map {file -> tuple(file.name.toString().tokenize('_').get(0), file)}
+        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
         .groupTuple(by: 0)
         .set {transformed_index_ch}
-    
-    // concat all of the transformed files together: reads, genome, index' files
-    // group by the base combination
-    // for exmp: [A2C,[[A2C_read1, A2C_read2..],A2C_transformed_genome,[A2C_index_file_1, A2C_index_file_2...]]])
-    // get only the files (by using map)
-    tranformed_files_ch = trans_reads_ch.concat(transformed_genomes_ch)
-                                        .concat(transformed_index_ch)
-                                        .groupTuple(by:0)
-                                        .map {tuple -> tuple[1]}
 
-    // seperate the reads, genomes and indexes from the bases cmobination transformed files channel
+    // concat all of the transformed files together: reads and index' dir
+    // group by the base combination
+    // for exmp: [A2C,[[A2C_sample1, A2C_sample2..], A2C_transformed_index])
+    // get only the files (tuple[1])
+    tranformed_files_ch = trans_reads_ch
+                                    .concat(transformed_index_ch)
+                                    .groupTuple(by:0)
+                                    .map {tuple -> tuple[1]}
+
+    // seperate the reads and indexes from the bases cmobination transformed files channel
     reads_channel_mount = tranformed_files_ch.map { tuple -> tuple[0].flatten() }
-    genome_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
-    index_channel_mount = tranformed_files_ch.map { tuple -> tuple[2] }
+    index_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
 
     // map the transformed reads to the fitted transformed genome's index
-    // collect anf faltten to get each file seperatelu and extract:
-    //      sample_id (get(0)), 
-    //      base_comb (get(1)).
-    //      sam file
-    mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, genome_channel_mount, index_channel_mount)
+    // collect and faltten to get each file seperated and extract:
+    //      1) sample_id (get(0)), 
+    //      2) base_comb (get(1)).
+    //      3) sam file
+    mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
                             .collect()
                             .flatten()
                             .map { file -> tuple(
-                                                file.name.toString().tokenize('_').get(0),
-                                                file.name.toString().tokenize('_').get(1),
-                                                file)}
+                                                 file.name.toString().tokenize(params.file_name_seperator).get(0),
+                                                 file.name.toString().tokenize(params.file_name_seperator).get(1),
+                                                 file)}
+
     // get the dirs of the original reads (output of the first map process) and extract:
-    //      sample id
-    //      file (directory)
+    //      1) sample id
+    //      2) file (directory)
     Channel
         .fromPath(params.original_reads, type:'dir')
-        .map {file -> tuple(file.name.toString(), file)}
+        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
         .set {originial_reads_ch}
-
     // combine the mapped transformed sam files with the original fastqs using the sample id as key
-    // and retransform the sequences of the mapped bam to the originak sequences
-    RETRANSFORM(originial_reads_ch.combine(mapped_transformed_ch, by:0), params.retransform_python_script)
+    // and retransform the sequences of the mapped bam to the original sequences
+    files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
+    files_to_retransform_ch.view()
+    RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
     RETRANSFORM.out.view()
- 
 }
 
