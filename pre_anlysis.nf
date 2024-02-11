@@ -43,10 +43,14 @@ bases=['A','G','C','T']
 
 def helpMessage() {
     log.info '''
-        usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf
-        (for running in baskground use: nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf)
+        usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf &
+        * for running in baskground:
+          nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf
+        * for help mesage: nextflow -c run pre_anlysis.nf --help
 
         options:
+        ---------------
+                --help              displayes help message             
         ---------------
         input file parameters 
                 -pair_end			pair end flag (0:SE, 1:PE)
@@ -60,10 +64,14 @@ def helpMessage() {
         output dirs parameters
                 -outdir				path for the output directory (relative path preferred)
                 -fastp_output_dir		path for the output of the fastp process (default- "${params.outdir}/fastp")
-                -first_map_output_dir		path for the output of the first map process (default- "${params.outdir}/first_map")
-                -transform_output_dir		path for the output of the transform reads process (default- 										"${params.outdir}/transformed_unmapped")
-                -second_map_output_dir		path for the output of the second map process (default- "${params.outdir}/second_map")
-                -retransform_output_dir		path for the output of the second map process (default- "${params.outdir}/re-transform")
+                -first_map_output_dir		path for the output of the first map process
+                                                (default-"${params.outdir}/first_map")
+                -transform_output_dir		path for the output of the transform reads process 
+                                                (default-"${params.outdir}/transformed_unmapped")
+                -second_map_output_dir		path for the output of the second map process
+                                                (default- "${params.outdir}/second_map")
+                -retransform_output_dir		path for the output of the second map process
+                                                (default- "${params.outdir}/re-transform")
         ---------------
         Fastp parameters
                 -N_bases_num			maximum number of N bases in a read (default- 5)
@@ -77,29 +85,31 @@ def helpMessage() {
                 -genome_index_dir		path to the genome's index directory
                 -SAM_attr			desired SAM attributes (default - "All")
                 -outSAMtype			type of the output mapped files (default - "BAM Unsorted")
-                -min_SJ_overhang			minimum overhang (i.e. block size) for spliced alignments (default -8)
-                -max_intron_size			maximum intron length (dafault value for STAR and HE- 1000000)
+                -min_SJ_overhang		minimum overhang (i.e. block size) for spliced alignments (default -8)
+                -max_intron_size		maximum intron length (dafault value for STAR and HE- 1000000)
                 -max_mates_gap			maximum genomic distance between mates (default -600000)
                 -max_mismatches_ratio_to_ref	max ratio of mismatches to *mapped* length (dafault value for STAR and HE- 3)
                 -max_mismatche_ratio_to_read	max ratio of mismatches to *read* length (dafault value for STAR and HE- 1)
-                -norm_num_of_matches		min number of matched bases normalized to the read length (sum of mates’ lengths for PE reads) (dafault value for STAR and HE- 0.66)
+                -norm_num_of_matches		min number of matched bases normalized to the read length
+                                                (sum of mates’ lengths for PE reads) (dafault value for STAR and HE- 0.66)
                 -max_num_of_allignment		max number of multiple alignments allowed for a read, if exceeded->unmapped (default - 1)
-                -genome_load_set			genome shared memory is not used (dafault value for STAR and HE-"NoSharedMemory")
+                -genome_load_set		genome shared memory is not used (dafault value for STAR and HE-"NoSharedMemory")
                 -num_of_threads			number of threads for each mapping process (dafault - 5)
-                -unmapped_out_files		unmapped reads will be output into separate file(s)Unmapped.out.mate1[2], formatted the same way as -input read files (default - Fastx")
+                -unmapped_out_files		unmapped reads will be output into separate file(s)Unmapped.out.mate1[2],
+                                            formatted the same way as -input read files (default - Fastx")
                 -output_files_permissions	file permissions (dafault - "All_RWX")
         ---------------
         second map parameters
         general:
-                -transformed_indexes			path to the directory of the transformed genome indexes from HE part 1
-                            (for example - "/generic_transform/hg38transform/genome_indexing/*")
+                -transformed_indexes		path to the directory of the transformed genome indexes from HE part 1
+                                                (for example - "/generic_transform/hg38transform/genome_indexing/*")
         STAR parameters:
-                -STAR_MAX_PARALLEL			number of files to be mapped parallely (dafault - 6)
-                -second_map_genome_load_set		controls how the genome is loaded into memory (dafault -"LoadAndKeep")
+                -STAR_MAX_PARALLEL		number of files to be mapped parallely (dafault - 6)
+                -second_map_genome_load_set	controls how the genome is loaded into memory (dafault -"LoadAndKeep")
         ---------------
         retransform parameters
                 -original_reads			path to the original fastq files (default - extracts from first_map_output_dir)
-                -filter_sam_files			STAR output files to be output (default - '*Aligned.out*')
+                -filter_sam_files		STAR output files to be output (default - '*Aligned.out*')
     '''
     .stripIndent()
 }
