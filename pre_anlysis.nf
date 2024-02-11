@@ -167,27 +167,45 @@ process FASTP{
 */
 process FIRST_STAR_MAP{
     maxForks 1
-    tag "1st MAP: ${sample_id}"
-    publishDir "${params.first_map_output_dir}/${sample_id}", pattern: "*", mode: 'copy'
+    tag "1st MAP: ${genome_index}"
+    publishDir "${params.first_map_output_dir}", pattern: "*", mode: 'copy'
 
     input:
-        tuple val(sample_id), path(fastq)
+        path(fastq)
         path(genome_index)
 
     output:
-        tuple val(sample_id), path('*Unmapped*')
+        path('*Unmapped*')
         // stdout
 
     script:
+    // number of samples- for PE: (number of fastq files / 2), for SE: number of files
+    num_of_samples = params.pair_end ? fastq.collect().size()/2 : fastq.collect().size()
+    // number of files to be mapped each time- PE: 2, SE:1 
+    step = params.pair_end ? 2 : 1
 
-        if (params.pair_end == 0)   //SE
-            """
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
-            """
-        else                        //PE
-            """
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq[0]} ${fastq[1]} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
-            """
+    // maxForks 1
+    // tag "1st MAP: ${sample_id}"
+    // publishDir "${params.first_map_output_dir}/${sample_id}", pattern: "*", mode: 'copy'
+
+    // input:
+    //     tuple val(sample_id), path(fastq)
+    //     path(genome_index)
+
+    // output:
+    //     tuple val(sample_id), path('*Unmapped*')
+    //     // stdout
+
+    script:
+
+        // if (params.pair_end == 0)   //SE
+        //     """
+        //     ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
+        //     """
+        // else                        //PE
+        //     """
+        //     ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn ${fastq[0]} ${fastq[1]} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm All_RWX
+        //     """
 
 }
 
@@ -388,7 +406,7 @@ process RETRANSFORM {
 }
 
 workflow {  
-    // print help message and exit if there is -help flag
+    // print help message and exit if there is --help flag
     if(params.help){
         helpMessage()
         System.exit(1)
