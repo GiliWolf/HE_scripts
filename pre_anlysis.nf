@@ -175,8 +175,8 @@ process FIRST_STAR_MAP{
         path(genome_index)
 
     output:
-        path('*Unmapped*')
-        // stdout
+        // path('*Unmapped*')
+        stdout
 
     script:
     // number of samples- for PE: (number of fastq files / 2), for SE: number of files
@@ -197,6 +197,14 @@ process FIRST_STAR_MAP{
     //     // stdout
 
     script:
+    """
+    echo fastq " ${fastq}"
+    echo index: ${genome_index}"
+    echo "num_of_samples: ${num_of_samples}"
+    echo "step: $${step}"
+    """
+
+    
 
         // if (params.pair_end == 0)   //SE
         //     """
@@ -426,78 +434,78 @@ workflow {
         error "----------------\n error: pair_end flag must be 0/1\n----------------"
 
     // preprocess samples with fastp
-    FASTP(samples_ch)
 
     // get unmapped reads for each sample from the first star map
-    unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0], params.genome_index_dir)
+    unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
+    unmapped_reads_ch.view()
+    //  *****************************************************************
+    // // all the bases combinations (MM) the reads to be transformed accordinly
+    // Channel
+    //     .of(['A','C'],['A','G'],['A','T'],['C','A'],['C','G'],['C','T'],['G','A'],['G','C'],['G','T'],['T','A'],['T','C'],['T','G'])
+    //     .set {bases_combination_ch}
 
-    // all the bases combinations (MM) the reads to be transformed accordinly
-    Channel
-        .of(['A','C'],['A','G'],['A','T'],['C','A'],['C','G'],['C','T'],['G','A'],['G','C'],['G','T'],['T','A'],['T','C'],['T','G'])
-        .set {bases_combination_ch}
-
-    // Transform all of the unmapped reads recieved from FIRST_STAR_MAP (12 different bases combination)
-    // group by the base combination
-    if (params.pair_end == 0)                         //SE
-        trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
-                        .map { file ->
-                                def prefix = file.name.toString().tokenize(params.file_name_seperator).get(0)
-                                return tuple(prefix, file)}
-                        .groupTuple(by:0)
-    else //PE
-        trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
-                        .map { it ->
-                                def prefix = it[0].name.toString().tokenize(params.file_name_seperator).get(0)
-                                return tuple(prefix, [it[0], it[1]])}
-                        .groupTuple(by:0)
+    // // Transform all of the unmapped reads recieved from FIRST_STAR_MAP (12 different bases combination)
+    // // group by the base combination
+    // if (params.pair_end == 0)                         //SE
+    //     trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
+    //                     .map { file ->
+    //                             def prefix = file.name.toString().tokenize(params.file_name_seperator).get(0)
+    //                             return tuple(prefix, file)}
+    //                     .groupTuple(by:0)
+    // else //PE
+    //     trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
+    //                     .map { it ->
+    //                             def prefix = it[0].name.toString().tokenize(params.file_name_seperator).get(0)
+    //                             return tuple(prefix, [it[0], it[1]])}
+    //                     .groupTuple(by:0)
     
-    // get all tramsformed indexes' files
-    // extract prefix - <ref_base>2<alt_base>, and map it to the files
-    // make touples of [base_combination, index_dir]
-    Channel
-        .fromPath(params.transformed_indexes, type: 'dir')
-        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
-        .groupTuple(by: 0)
-        .set {transformed_index_ch}
+    // // get all tramsformed indexes' files
+    // // extract prefix - <ref_base>2<alt_base>, and map it to the files
+    // // make touples of [base_combination, index_dir]
+    // Channel
+    //     .fromPath(params.transformed_indexes, type: 'dir')
+    //     .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
+    //     .groupTuple(by: 0)
+    //     .set {transformed_index_ch}
 
-    // concat all of the transformed files together: reads and index' dir
-    // group by the base combination
-    // for exmp: [A2C,[[A2C_sample1, A2C_sample2..], A2C_transformed_index])
-    // get only the files (tuple[1])
-    tranformed_files_ch = trans_reads_ch
-                                    .concat(transformed_index_ch)
-                                    .groupTuple(by:0)
-                                    .map {tuple -> tuple[1]}
+    // // concat all of the transformed files together: reads and index' dir
+    // // group by the base combination
+    // // for exmp: [A2C,[[A2C_sample1, A2C_sample2..], A2C_transformed_index])
+    // // get only the files (tuple[1])
+    // tranformed_files_ch = trans_reads_ch
+    //                                 .concat(transformed_index_ch)
+    //                                 .groupTuple(by:0)
+    //                                 .map {tuple -> tuple[1]}
 
-    // seperate the reads and indexes from the bases cmobination transformed files channel
-    reads_channel_mount = tranformed_files_ch.map { tuple -> tuple[0].flatten() }
-    index_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
+    // // seperate the reads and indexes from the bases cmobination transformed files channel
+    // reads_channel_mount = tranformed_files_ch.map { tuple -> tuple[0].flatten() }
+    // index_channel_mount = tranformed_files_ch.map { tuple -> tuple[1] }
 
-    // map the transformed reads to the fitted transformed genome's index
-    // collect and faltten to get each file seperated and extract:
-    //      1) sample_id (get(0)), 
-    //      2) base_comb (get(1)).
-    //      3) sam file
-    mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
-                            .collect()
-                            .flatten()
-                            .map { file -> tuple(
-                                                 file.name.toString().tokenize(params.file_name_seperator).get(0),
-                                                 file.name.toString().tokenize(params.file_name_seperator).get(1),
-                                                 file)}
+    // // map the transformed reads to the fitted transformed genome's index
+    // // collect and faltten to get each file seperated and extract:
+    // //      1) sample_id (get(0)), 
+    // //      2) base_comb (get(1)).
+    // //      3) sam file
+    // mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
+    //                         .collect()
+    //                         .flatten()
+    //                         .map { file -> tuple(
+    //                                              file.name.toString().tokenize(params.file_name_seperator).get(0),
+    //                                              file.name.toString().tokenize(params.file_name_seperator).get(1),
+    //                                              file)}
 
-    // get the dirs of the original reads (output of the first map process) and extract:
-    //      1) sample id
-    //      2) file (directory)
-    Channel
-        .fromPath(params.original_reads, type:'dir')
-        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
-        .set {originial_reads_ch}
-    // combine the mapped transformed sam files with the original fastqs using the sample id as key
-    // and retransform the sequences of the mapped bam to the original sequences
-    files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
-    files_to_retransform_ch.view()
-    RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
-    RETRANSFORM.out.view()
+    // // get the dirs of the original reads (output of the first map process) and extract:
+    // //      1) sample id
+    // //      2) file (directory)
+    // Channel
+    //     .fromPath(params.original_reads, type:'dir')
+    //     .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
+    //     .set {originial_reads_ch}
+    // // combine the mapped transformed sam files with the original fastqs using the sample id as key
+    // // and retransform the sequences of the mapped bam to the original sequences
+    // files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
+    // files_to_retransform_ch.view()
+    // RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
+    // RETRANSFORM.out.view()
 }
 
