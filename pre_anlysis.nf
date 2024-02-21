@@ -46,7 +46,7 @@ def helpMessage() {
         usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf &
         * for running in baskground:
           nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf
-        * for help mesage: nextflow -c run pre_anlysis.nf --help
+        * for help message: nextflow -c run pre_anlysis.nf --help
 
         options:
         ---------------
@@ -432,6 +432,10 @@ process RETRANSFORM {
 
     
 }
+// TO - Do:
+//  CHNAGE/ADD PE/SE TP PROFILE (LIKE HELP MESSEGE - [--PE, --SE]) - ASK ITAMAR PROFILE/PARAMETER
+// for sample id in PE should consider the mate suffix as well, like - ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO_1.fq.gz
+//  same star parameters for first map
 
 workflow {  
     // print help message and exit if there is --help flag
@@ -448,8 +452,8 @@ workflow {
             .set {samples_ch}
     else if (params.pair_end == 1)                    //PE
         Channel
-        .fromFilePairs(params.PE_reads, checkIfExists: true)
-        .set {samples_ch} 
+            .fromFilePairs(params.PE_reads, checkIfExists: true)
+            .set {samples_ch} 
     else             // raise error if pair_end flag != 0/1
         error "----------------\n error: pair_end flag must be 0/1\n----------------"
 
