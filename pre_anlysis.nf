@@ -43,9 +43,9 @@ bases=['A','G','C','T']
 
 def helpMessage() {
     log.info '''
-        usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf &
+        usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf
         * for running in baskground:
-          nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf
+          nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf &
         * for help message: nextflow -c run pre_anlysis.nf --help
 
         options:
@@ -56,8 +56,8 @@ def helpMessage() {
                 -pair_end			pair end flag (0:SE, 1:PE)
                 -reads_dir= 			samples' directory
                 -reads_suffix=			suffixs of the samples' files (default-".fastq")
-                -file_name_seperator=		seperator of the file's name companats (default- '_')
-                -mate_suffix			suffix of both mates (default- "_")
+                -file_seperator=		seperator of the file's name companats (default- '_')
+                -mate_seperator			suffix of both mates (default- "_")
                 -mate1_suff			suffix of mate1 (default- "1")
                 -mate2_suff			suffix of mate2 (default- "2")
         ---------------
@@ -434,8 +434,26 @@ process RETRANSFORM {
 }
 // TO - Do:
 //  CHNAGE/ADD PE/SE TP PROFILE (LIKE HELP MESSEGE - [--PE, --SE]) - ASK ITAMAR PROFILE/PARAMETER
-// for sample id in PE should consider the mate suffix as well, like - ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO_1.fq.gz
 //  same star parameters for first map
+
+
+def getSampleID(file_name) {
+    def tokens = file_name.tokenize(params.suffix_seperator).get(0)
+    if (params.pair_end == 1){
+        // PE
+        if (params.mate_seperator != params.file_seperator){
+            return tokens.tokenize(params.mate_seperator).get(0)
+        }
+        else {
+            def without_suffix = file_name.tokenize(params.mate_seperator)
+            return without_suffix[0..-2].join(params.file_seperator)
+        }
+    }
+    // SE
+    else{
+        return tokens
+    }
+}
 
 workflow {  
     // print help message and exit if there is --help flag
@@ -468,7 +486,7 @@ workflow {
 
     unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
                         .flatten()
-                        .map { file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
+                        .map { file -> tuple(getSampleID(file.name.toString()), file)}
                         .groupTuple(by:0)
                         
     // all the bases combinations (MM) the reads to be transformed accordinly
@@ -481,13 +499,12 @@ workflow {
     if (params.pair_end == 0)                         //SE
         trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
                         .map { file ->
-                                def prefix = file.name.toString().tokenize(params.file_name_seperator).get(0)
-                                return tuple(prefix, file)}
+                                tuple(getSampleID(file.name.toString()), file)}
                         .groupTuple(by:0)
     else //PE
         trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
                         .map { it ->
-                                def prefix = it[0].name.toString().tokenize(params.file_name_seperator).get(0)
+                                def prefix = getSampleID(it[0].name.toString())
                                 return tuple(prefix, [it[0], it[1]])}
                         .groupTuple(by:0)
 
@@ -496,7 +513,7 @@ workflow {
     // make touples of [base_combination, index_dir]
     Channel
         .fromPath(params.transformed_indexes, type: 'dir')
-        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
+        .map {file -> tuple(getSampleID(file.name.toString()), file)}
         .groupTuple(by: 0)
         .set {transformed_index_ch}
 
@@ -522,8 +539,8 @@ workflow {
                             .collect()
                             .flatten()
                             .map { file -> tuple(
-                                                 file.name.toString().tokenize(params.file_name_seperator).get(0),
-                                                 file.name.toString().tokenize(params.file_name_seperator).get(1),
+                                                 file.name.toString().tokenize(params.file_seperator).get(0),
+                                                 file.name.toString().tokenize(params.file_seperator).get(1),
                                                  file)}
 
     // get the dirs of the original reads (output of the first map process) and extract:
@@ -531,7 +548,7 @@ workflow {
     //      2) file (directory)
     Channel
         .fromPath(params.original_reads, type:'dir')
-        .map {file -> tuple(file.name.toString().tokenize(params.file_name_seperator).get(0), file)}
+        .map {file -> tuple(getSampleID(file.name.toString()), file)}
         .set {originial_reads_ch}
     // combine the mapped transformed sam files with the original fastqs using the sample id as key
     // and retransform the sequences of the mapped bam to the original sequences
