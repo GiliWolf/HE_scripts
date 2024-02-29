@@ -156,9 +156,9 @@ process FASTP{
                         -j "${sample_id}.fastp.json" \
                         --dont_eval_duplication \
                         --in1 ${reads[0]} \
-                        -o "${sample_id}_1.processed.fastq" \
+                        -o "${sample_id}${params.mate_seperator}1.processed.fastq" \
                         --in2 ${reads[1]} \
-                        -O "${sample_id}_2.processed.fastq"
+                        -O "${sample_id}${params.mate_seperator}2.processed.fastq"
             """
 }
 
@@ -198,10 +198,6 @@ process FIRST_STAR_MAP{
         # Split the string into a list
         IFS=' ' read -ra samples_list <<< "\$fastqs_string"
 
-    for element in "\${samples_list[@]}"; do
-    echo "\$element"
-    done
-
     # ALLIGNMENT:
     echo 'Starting allignmet'
 
@@ -218,14 +214,23 @@ process FIRST_STAR_MAP{
             else
                 mate2=\${samples_list[j*${step}+1]}
             fi
-            sample_id=\$(echo "\${mate1}" | awk -F '[_.]' '{print \$1}')
 
-            echo "mate1: \${mate1}"
-            echo "mate2: \${mate2}"
-            echo "sample_id: \${sample_id}"
+            # extract sample ID - same logic as to the groovy function getSampleID (above the main workflow)
+            # only it is written in bash
+            if [ "${params.pair_end}" -eq 0 ]; then
+                sample_id=\$(echo "\${mate1}" | awk -v fs="${params.file_seperator}" -v ss="${params.suffix_seperator}" 'BEGIN{FS=ss}{split(\$1, parts, fs); for(i=1; i<length(parts); i++) printf "%s_", parts[i]; printf "%s", parts[length(parts)]}')
+            else
+                if [[ "${params.mate_seperator}" == "${params.file_seperator}" ]]; then
+                    sample_id=\$(echo "\${mate1}" | awk -v fs="${params.file_seperator}" -v ss="${params.suffix_seperator}" 'BEGIN{FS=ss}{split(\$1, parts, fs); for(i=1; i<(length(parts)-1); i++) printf "%s_", parts[i]; printf "%s", parts[length(parts)-1]}')
+                else
+                    sample_id=\$(echo "\${mate1}" | awk -v ms="${params.mate_seperator}" -v ss="${params.suffix_seperator}" 'BEGIN{FS=ms ss}{print \$1}')
+                fi
+
+            fi
+
         
             # mapping each sample in the background
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}_" &> run_\${sample_id} &
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}${params.file_seperator}" &> run_\${sample_id} &
 
         done
 
@@ -266,7 +271,7 @@ process TRANSFORM_READS {
                     alt_base_upper=\$(echo "${alt_base}" | tr '[:lower:]' '[:upper:]')
                 
                 # create output path
-                    transformed_output_path="${ref_base}2${alt_base}_${sample_id}.fastq"
+                    transformed_output_path="${ref_base}2${alt_base}${params.file_seperator}${sample_id}.fastq"
             
                 # generic awk script for each mate
                     awk_script='
@@ -293,8 +298,8 @@ process TRANSFORM_READS {
                     alt_base_upper=\$(echo "${alt_base}" | tr '[:lower:]' '[:upper:]')
                 
                 # create output path for each mate
-                    transformed_output_path_mate1="${ref_base}2${alt_base}_${sample_id}_1.fastq"
-                    transformed_output_path_mate2="${ref_base}2${alt_base}_${sample_id}_2.fastq"
+                    transformed_output_path_mate1="${ref_base}2${alt_base}${params.file_seperator}${sample_id}_1.fastq"
+                    transformed_output_path_mate2="${ref_base}2${alt_base}${params.file_seperator}${sample_id}_2.fastq"
             
                 # generic awk script for each mate
                     awk_script='
@@ -359,9 +364,6 @@ process SECOND_STAR_MAP{
         # Split the string into a list
         IFS=' ' read -ra samples_list <<< "\$fastqs_string"
 
-    for element in "\${samples_list[@]}"; do
-    echo "\$element"
-    done
 
     # ALLIGNMENT:
     echo 'Starting allignmet'
@@ -379,13 +381,21 @@ process SECOND_STAR_MAP{
             else
                 mate2=\${samples_list[j*${step}+1]}
             fi
-            # sample_id=\$(echo "\${mate1}" | cut -dparams.file_name_seperator -f2)
-            sample_id=\$(echo "\${mate1}" | awk -F '[_.]' '{print \$2}')
 
-            echo "mate1: \${mate1}"
-            echo "mate2: \${mate2}"
-            echo "sample_id: \${sample_id}"
-        
+        # extract sample ID - *similar* to the logic of the groovy function getSampleID (above main workflow)
+        # *execpt* of removing the BASE_COMB which located in the beginning of the file.
+        # for example - "A2C_ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO-2.fq" -> "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO"
+        if [ "${params.pair_end}" -eq 0 ]; then
+            sample_id=\$(echo "\${mate1}" | awk -v fs="${params.file_seperator}" -v ss="${params.suffix_seperator}" 'BEGIN{FS=ss}{split(\$1, parts, fs); for(i=2; i<length(parts); i++) printf "%s_", parts[i]; printf "%s", parts[length(parts)]}')
+        else
+            if [[ "${params.mate_seperator}" == "${params.file_seperator}" ]]; then
+                sample_id=\$(echo "\${mate1}" | awk -v fs="${params.file_seperator}" -v ss="${params.suffix_seperator}" 'BEGIN{FS=ss}{split(\$1, parts, fs); for(i=2; i<(length(parts)-1); i++) printf "%s_", parts[i]; printf "%s", parts[length(parts)-1]}')
+            else
+                sample_id=\$(echo "\${mate1}" | awk -v fs="${params.file_seperator}" -v ms="${params.mate_seperator}" -v ss="${params.suffix_seperator}" 'BEGIN{FS=ms ss}{split(\$1, parts, fs); for(i=2; i<length(parts); i++) printf "%s_", parts[i]; printf "%s", parts[length(parts)]}')
+            fi
+        fi
+
+
             # mapping each sample in the background
             ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}_${base_comb}_" &> run_\${sample_id} &
 
@@ -424,7 +434,7 @@ process RETRANSFORM {
 
 
     script:
-        outout_path = "${sample_id}_re-transformed.sam"
+        outout_path = "${sample_id}${params.file_seperator}re-transformed.sam"
         """
         ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir} ${params.pair_end}
         
@@ -445,6 +455,7 @@ def getSampleID(file_name) {
             return tokens.tokenize(params.mate_seperator).get(0)
         }
         else {
+            // get all the attributes connected by file_seperator beside the last one (mate suffix)
             def without_suffix = file_name.tokenize(params.mate_seperator)
             return without_suffix[0..-2].join(params.file_seperator)
         }
@@ -486,7 +497,11 @@ workflow {
 
     unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
                         .flatten()
-                        .map { file -> tuple(getSampleID(file.name.toString()), file)}
+                        .map { file ->
+                                def file_name  = file.name.toString()
+                                def seperated_file =  file_name.split("${params.file_seperator}Unmapped")
+                                return tuple(seperated_file[0],file)
+                        }
                         .groupTuple(by:0)
                         
     // all the bases combinations (MM) the reads to be transformed accordinly
