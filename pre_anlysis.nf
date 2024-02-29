@@ -348,7 +348,7 @@ process SECOND_STAR_MAP{
     num_of_samples = params.pair_end ? trans_fastqs.collect().size()/2 : trans_fastqs.collect().size()
     // base combination (MM): first part o fthe index dir name 
     // ( for example: A2C_transformed_hg38.fa_index -> A2C)
-    base_comb = trans_index_dir.name.toString().tokenize(params.file_name_seperator).get(0)
+    base_comb = trans_index_dir.name.toString().tokenize(params.file_seperator).get(0)
     // number of files to be mapped each time- PE: 2, SE:1 
     step = params.pair_end ? 2 : 1
 
@@ -446,22 +446,37 @@ process RETRANSFORM {
 //  CHNAGE/ADD PE/SE TP PROFILE (LIKE HELP MESSEGE - [--PE, --SE]) - ASK ITAMAR PROFILE/PARAMETER
 //  same star parameters for first map
 
+/*
+    this function is for extracting the sample_id out of the file name.
+    it has three options:
+        1) SE - returns the whole part before the sufix seperator.
+           for example - "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO.fq" -> "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO"
+        2) PE: when the mate seperator is equal to the file seperator - 
+           seprates the file by the file seperator and return the concanated attributes from the first to the second last.
+           for example - "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO_1.fq" -> "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO"
+        3) PE: when the mate seperator is *not* equal to the file seperator -
+           returns the whole part before the mate seperator.
+           for example - "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO-1.fq" -> "ADAR_GMCSF_AdarWT_MDA5KO_79_372_SKO"
+*/
 
-def getSampleID(file_name) {
-    def tokens = file_name.tokenize(params.suffix_seperator).get(0)
+def getSampleID(file) {
+    def tokens = file.tokenize(params.suffix_seperator).get(0)
     if (params.pair_end == 1){
         // PE
         if (params.mate_seperator != params.file_seperator){
+            // return tuple (tokens.tokenize(params.mate_seperator).get(0), file)
             return tokens.tokenize(params.mate_seperator).get(0)
         }
         else {
             // get all the attributes connected by file_seperator beside the last one (mate suffix)
             def without_suffix = file_name.tokenize(params.mate_seperator)
+            // return tuple (without_suffix[0..-2].join(params.file_seperator), file)
             return without_suffix[0..-2].join(params.file_seperator)
         }
     }
     // SE
     else{
+        // return tuple(tokens, file)
         return tokens
     }
 }
@@ -509,26 +524,40 @@ workflow {
         .of(['A','C'],['A','G'],['A','T'],['C','A'],['C','G'],['C','T'],['G','A'],['G','C'],['G','T'],['T','A'],['T','C'],['T','G'])
         .set {bases_combination_ch}
 
+    // if (params.pair_end == 0)                         //SE
+    //     trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
+    //                     .map { file ->
+    //                             tuple(getSampleID(file.name.toString()), file)}
+    //                     .groupTuple(by:0)
+    // else //PE
+    //     trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
+    //                     .map { it ->
+    //                             def prefix = getSampleID(it[0].name.toString())
+    //                             return tuple(prefix, [it[0], it[1]])}
+    //                     .groupTuple(by:0)
+
     // Transform all of the unmapped reads recieved from FIRST_STAR_MAP (12 different bases combination)
     // group by the base combination
     if (params.pair_end == 0)                         //SE
         trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
                         .map { file ->
-                                tuple(getSampleID(file.name.toString()), file)}
+                                def prefix = file.name.toString().tokenize(params.file_seperator).get(0)
+                                return tuple(prefix, file)}
                         .groupTuple(by:0)
     else //PE
         trans_reads_ch = TRANSFORM_READS(unmapped_reads_ch, bases_combination_ch)
                         .map { it ->
-                                def prefix = getSampleID(it[0].name.toString())
+                                def prefix = it[0].name.toString().tokenize(params.file_seperator).get(0)
                                 return tuple(prefix, [it[0], it[1]])}
                         .groupTuple(by:0)
 
+    trans_reads_ch.view()
     // get all tramsformed indexes' files
     // extract prefix - <ref_base>2<alt_base>, and map it to the files
     // make touples of [base_combination, index_dir]
     Channel
         .fromPath(params.transformed_indexes, type: 'dir')
-        .map {file -> tuple(getSampleID(file.name.toString()), file)}
+        .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
         .groupTuple(by: 0)
         .set {transformed_index_ch}
 
