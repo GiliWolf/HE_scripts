@@ -16,22 +16,6 @@ algo:
         c) get original sequence and write the SAM read with the original sequence to the output file 
 """
 
-    # quay.io/biocontainers/pysam key functions:
-    #     get_query_names(self)
-    #     is_paired
-    #     is_read1
-    #     is_read2
-    #     is_reverse
-    #     mate_is_reverse
-    #     mate_is_unmapped
-    #     is_proper_pair ?
-    #     mapping_quality
-    #     query_alignment_sequence / query_sequence
-    #     query_name
-
-    #     pysam.FastxFile
-
-
 import pysam
 import sys
 import os
@@ -81,7 +65,7 @@ if (pair_end):
             mate2_seqs[read.name] = read.sequence
 
 # change the read seq (from sam file) to the seq extracted from the same mate's fastq file, based on read's name 
-def getOriginal(read, seq_dict):
+def getOriginal(read, seq_dict, qualities):
     # Access the name of the read
     transformed_id = read.query_name
 
@@ -91,7 +75,8 @@ def getOriginal(read, seq_dict):
         original_seq = seq_dict[transformed_id]
         # modify the sam file sequence to the original 
         read.query_sequence = original_seq
-        
+        #restore the read qualities
+        read.query_qualities = qualities
         # write it to the output SAM file
         output_sam.write(read)
 
@@ -102,13 +87,16 @@ with pysam.AlignmentFile(input_sam_file, "rb") as samfile:
     with pysam.AlignmentFile(output_sam_file, "wh", header=samfile.header) as output_sam:
         # for each read in the sam file
         for read in samfile:
+            #bug in pysam- doesn't pass the read qualities when passed to a function
+            # solution: pass the quailities seperatly and restore them in the getOriginal function
+            qualities = read.query_qualities
             if pair_end:
                 # get original read of mate1
                 if read.is_read1: 
-                    getOriginal(read, mate1_seqs)
+                    getOriginal(read, mate1_seqs, qualities)
                 # get original read of mate2 (if pair_end == 1)
                 if read.is_read2: 
-                    getOriginal(read, mate2_seqs)
+                    getOriginal(read, mate2_seqs, qualities)
             else:
-                getOriginal(read, mate1_seqs)
+                getOriginal(read, mate1_seqs, qualities)
 
