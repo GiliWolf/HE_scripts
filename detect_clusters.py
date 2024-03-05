@@ -24,14 +24,17 @@ Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base
 
 import pysam
 import csv
+import sys
 
-bam_path = "/private10/Projects/Gili/HE_workdir/first_part/name_test/second_map/A2C/SRR11548778_A2C_Aligned.out.bam"
-fasta_path = "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
+if len(sys.argv) != 6:
+    print("Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base> <alt_base>")
+    sys.exit(1)
 
-output_path = "/private10/Projects/Gili/HE_workdir/detection/detect_clusters_test/SRR11548778_A2C_output.csv"
-
-ref_base = 'A'
-alt_base = 'C'
+bam_path = sys.argv[1]
+fasta_path = sys.argv[2]
+output_path = sys.argv[3]
+ref_base = sys.argv[4]
+alt_base = sys.argv[5]
 
 # Open the BAM file for reading
 bam_file = pysam.AlignmentFile(bam_path, "rb")
