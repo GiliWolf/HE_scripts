@@ -464,20 +464,20 @@ def getSampleID(file) {
     if (params.pair_end == 1){
         // PE
         if (params.mate_seperator != params.file_seperator){
-            // return tuple (tokens.tokenize(params.mate_seperator).get(0), file)
-            return tokens.tokenize(params.mate_seperator).get(0)
+            return tuple (tokens.tokenize(params.mate_seperator).get(0), file)
+            // return tokens.tokenize(params.mate_seperator).get(0)
         }
         else {
             // get all the attributes connected by file_seperator beside the last one (mate suffix)
             def without_suffix = file_name.tokenize(params.mate_seperator)
-            // return tuple (without_suffix[0..-2].join(params.file_seperator), file)
-            return without_suffix[0..-2].join(params.file_seperator)
+            return tuple (without_suffix[0..-2].join(params.file_seperator), file)
+            // return without_suffix[0..-2].join(params.file_seperator)
         }
     }
     // SE
     else{
-        // return tuple(tokens, file)
-        return tokens
+        return tuple(tokens, file)
+        // return tokens
     }
 }
 
@@ -551,7 +551,6 @@ workflow {
                                 return tuple(prefix, [it[0], it[1]])}
                         .groupTuple(by:0)
 
-    trans_reads_ch.view()
     // get all tramsformed indexes' files
     // extract prefix - <ref_base>2<alt_base>, and map it to the files
     // make touples of [base_combination, index_dir]
@@ -586,19 +585,28 @@ workflow {
                                                  file.name.toString().tokenize(params.file_seperator).get(0),
                                                  file.name.toString().tokenize(params.file_seperator).get(1),
                                                  file)}
-
+    // mapped_transformed_ch.view()
     // get the dirs of the original reads (output of the first map process) and extract:
     //      1) sample id
     //      2) file (directory)
-    Channel
-        .fromPath(params.original_reads, type:'dir')
-        .map {file -> tuple(getSampleID(file.name.toString()), file)}
-        .set {originial_reads_ch}
+    if (params.pair_end == 0)
+        Channel
+            .fromPath(params.original_reads)
+            // .map({file -> getSampleID(file.name.toString())})
+            .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
+            .set {originial_reads_ch}
+    else
+        Channel
+            .fromPath(params.original_reads, type:'dir')
+            // .map {file -> tuple(file.name.toString(), file)}
+            .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
+            .set {originial_reads_ch}
+    originial_reads_ch.view()
     // combine the mapped transformed sam files with the original fastqs using the sample id as key
     // and retransform the sequences of the mapped bam to the original sequences
     files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
     files_to_retransform_ch.view()
     RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
-    RETRANSFORM.out.view()
+    // RETRANSFORM.out.view()
 }
 
