@@ -49,7 +49,7 @@ if (pair_end): # PE - fastq_path is a directory with both mates
     original_mate_2 = next((f for f in files if f.endswith("mate2")), None)
     mate2_path = os.path.join(fastq_path, original_mate_2)
 else: #SE - fastq_path is the only mate1 file
-    mate1_path = os.path(fastq_path)
+    mate1_path = fastq_path
 
 # Create a dictonary to store the read names (as keys) and sequences (as value) from mate1 and mate 2 Fastqs
 mate1_seqs = {}

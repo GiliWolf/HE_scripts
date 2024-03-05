@@ -50,17 +50,22 @@ process FILTER {
 
 workflow {  
         // GET SAMPLES:
-    if (params.pair_end == 0)                         //SE
-        Channel
-            .fromPath(params.SE_HE_reads, checkIfExists: true)
-            .map {file -> tuple ("A2C",file.baseName, file)}
-            .set {samples_ch}
-    else if (params.pair_end == 1)                    //PE
-        Channel
-            .fromFilePairs(params.PE_HE_reads, checkIfExists: true)
-            .set {samples_ch} 
-    else             // raise error if pair_end flag != 0/1
-        error "----------------\n error: pair_end flag must be 0/1\n----------------"
+    // if (params.pair_end == 0)                         //SE
+    //     Channel
+    //         .fromPath(params.SE_HE_reads, checkIfExists: true)
+    //         .map {file -> tuple ("A2C",file.baseName, file)}
+    //         .set {samples_ch}
+    // else if (params.pair_end == 1)                    //PE
+    //     Channel
+    //         .fromFilePairs(params.PE_HE_reads, checkIfExists: true)
+    //         .set {samples_ch} 
+    // else             // raise error if pair_end flag != 0/1
+    //     error "----------------\n error: pair_end flag must be 0/1\n----------------"
+
+    Channel
+        .fromPath(params.SE_HE_reads, checkIfExists: true)
+        .map {file -> tuple ("A2C",file.baseName, file)}
+        .set {samples_ch}
     DETECT(samples_ch, params.fasta_path, params.detect_python_script)
     DETECT.out.view()
 

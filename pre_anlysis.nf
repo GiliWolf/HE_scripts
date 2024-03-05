@@ -230,7 +230,7 @@ process FIRST_STAR_MAP{
 
         
             # mapping each sample in the background
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}${params.file_seperator}" &> run_\${sample_id} &
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${genome_index} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.genome_load_set} --runThreadN ${params.num_of_threads} --outReadsUnmapped ${params.unmapped_out_files} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}." &> run_\${sample_id} &
 
         done
 
@@ -397,7 +397,7 @@ process SECOND_STAR_MAP{
 
 
             # mapping each sample in the background
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}_${base_comb}_" &> run_\${sample_id} &
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outFileNamePrefix "./\${sample_id}${params.file_seperator}${base_comb}${params.file_seperator}" &> run_\${sample_id} &
 
         done
 
@@ -434,7 +434,7 @@ process RETRANSFORM {
 
 
     script:
-        outout_path = "${sample_id}${params.file_seperator}re-transformed.sam"
+        outout_path = "${base_comb}${params.file_seperator}${sample_id}${params.file_seperator}re-transformed.sam"
         """
         ${params.python_command} ${python_script} ${bam_file} ${outout_path} ${original_reads_dir} ${params.pair_end}
         
@@ -601,12 +601,11 @@ workflow {
             // .map {file -> tuple(file.name.toString(), file)}
             .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
             .set {originial_reads_ch}
-    originial_reads_ch.view()
+    
     // combine the mapped transformed sam files with the original fastqs using the sample id as key
     // and retransform the sequences of the mapped bam to the original sequences
     files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
-    files_to_retransform_ch.view()
     RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
-    // RETRANSFORM.out.view()
+    RETRANSFORM.out.view()
 }
 
