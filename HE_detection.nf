@@ -8,24 +8,20 @@ process DETECT {
         path(python_script)
 
     output:
-        path('*')
+        tuple val(base_comb), val(sample_id), path('*detected.csv')
         // stdout
 
     script:
-        def outout_path = "${base_comb}${params.file_seperator}${sample_id}${params.file_seperator}detected.csv"
-        // def comb_bases_list = base_comb.tokenize("2")
+        outout_path = "${sample_id}${params.file_seperator}detected.csv"
+        comb_bases_list = base_comb.tokenize("2")
         // def ref_base = comb_bases_list[0]
         // def alt_base = comb_bases_list[1]
-        def comb_bases_list = ['A', 'C']
-        def ref_base = comb_bases_list[0]
-        def alt_base = comb_bases_list[1]
+        // def comb_bases_list = ['A', 'C']
+        ref_base = comb_bases_list[0]
+        alt_base = comb_bases_list[1]
 
         //Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base> <alt_base>
         """
-        # echo ${outout_path}
-        # echo ${comb_bases_list}
-        # echo ${ref_base}
-        # echo ${alt_base}
         ${params.python_command} ${python_script} ${file} ${genome} ${outout_path} ${ref_base} ${alt_base}
         
         """ 
@@ -33,17 +29,21 @@ process DETECT {
 
 process FILTER {
         tag "filter: ${sample_id}"
-        publishDir "", pattern: '*', mode: 'copy'
+        publishDir "${params.filter_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
     input:
-
+        tuple val(base_comb), val(sample_id), path(file)
+        path(python_script)
 
     output:
         path('*')
-
+        // stdout
     script:
-
+        filtered_output_path = "${sample_id}${params.file_seperator}filtered.csv"
+        rejected_output_path = "${sample_id}${params.file_seperator}rejected.csv"
         """
+        ${params.python_command} ${python_script} ${file} ${filtered_output_path} ${rejected_output_path}
+
         
         """  
 }
@@ -64,9 +64,11 @@ workflow {
 
     Channel
         .fromPath(params.SE_HE_reads, checkIfExists: true)
-        .map {file -> tuple ("A2C",file.baseName, file)}
+        .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.baseName, file)}
+        // .collect(flat:false)
         .set {samples_ch}
-    DETECT(samples_ch, params.fasta_path, params.detect_python_script)
-    DETECT.out.view()
-
+    // samples_ch.view()
+    detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
+    after_filtiration_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
+    after_filtiration_ch.view()
 }

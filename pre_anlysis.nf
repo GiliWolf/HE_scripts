@@ -593,14 +593,16 @@ workflow {
         Channel
             .fromPath(params.original_reads)
             // .map({file -> getSampleID(file.name.toString())})
-            .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
+            .map {file -> tuple(file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
             .set {originial_reads_ch}
     else
         Channel
             .fromPath(params.original_reads, type:'dir')
             // .map {file -> tuple(file.name.toString(), file)}
-            .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
+            .map {file -> tuple(file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
             .set {originial_reads_ch}
+    
+    originial_reads_ch.view()
     
     // combine the mapped transformed sam files with the original fastqs using the sample id as key
     // and retransform the sequences of the mapped bam to the original sequences

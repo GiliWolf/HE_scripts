@@ -6,16 +6,16 @@ Levanon Lab
 This script is designed to analyze and detect the editing events from the overall general mismatches events.
 the script output a CSV file with the following parameters:
     1. Read_ID 
-    2. Chromosome: 
-    3. Position:
-    4. Alignment_length:
-    5. Reference_Sequence:
-    6. cigar:
-    7. blocks:
-    8. HE_Sequence:
-    9. Number_of_MM:
-    10. Number_of_Editing_Sites:
-    11. Editing_Sites_List:
+    2. Chromosome 
+    3. Position
+    4. Alignment_length (clipping isn't included, length of the *coding* regions in case of splicing)
+    5. Reference_Sequence (clipping isn't included, introns are not incloded, from the genome fasta file)
+    6. cigar
+    7. blocks (coding regions in case of splicing)
+    8. HE_Sequence (original ran read)
+    9. Number_of_MM (number of total mismatches of HE_Sequence compare to Reference_Sequence)
+    10. Number_of_Editing_Sites (number of mismatches of the ref_base to alt_base kind)
+    11. Editing_Sites_Map (key: position, value: phred quality score)
 
 
 Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base> <alt_base>
@@ -47,7 +47,7 @@ output_file = open(output_path, "w", newline='')
 csv_writer = csv.writer(output_file)
 
 # Write the header row to the CSV file
-header = ['Read_ID', 'Chromosome', 'Position','Alignment_length', 'Reference_Sequence', 'cigar','blocks', 'HE_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_Fracture', 'Editing_Sites_List']
+header = ['Read_ID', 'Chromosome', 'Position','Alignment_length', 'Reference_Sequence', 'cigar','blocks', 'HE_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_Fracture', 'Editing_Sites_Map']
 csv_writer.writerow(header)
 
 # Iterate through each read in the BAM file
@@ -95,7 +95,7 @@ for read in bam_file:
         editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
 
         # Write the parameters to the CSV file:
-        # 'Read_ID', 'Chromosome', 'Position','Alignment_length', 'Reference_Sequence', 'cigar','blocks', 'HE_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites', 'editing_Fracture', 'Editing_Sites_List'
+        # 'Read_ID', 'Chromosome', 'Position','Alignment_length', 'Reference_Sequence', 'cigar','blocks', 'HE_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites', 'editing_Fracture', 'Editing_Sites_Map'
         csv_writer.writerow([read.query_name, chromosome, position, allignment_length, reference_sequence,cigar, blocks, HE_sequence, num_of_mm, num_of_editing_sites,editing_fracture, editing_sites])
 
 # Close all of the files

@@ -1,16 +1,49 @@
+"""
+Author: Gili Wolf
+Date: 06-03-2024
+Levanon Lab
+----------------------------
+This script is designed to filter HE read based on pre-defined conditions.
+the script output 2 CSV file: 
+first - 
+    filtered CSV with the information of the reads which passed all of the conditions,
+    with the following parameters:
+    1. Read_ID 
+    2. Chromosome 
+    3. Position
+    4. Alignment_length (clipping isn't included, length of the *coding* regions in case of splicing)
+    5. Reference_Sequence (clipping isn't included, introns are not incloded, from the genome fasta file)
+    6. cigar
+    7. blocks (coding regions in case of splicing)
+    8. HE_Sequence (original ran read)
+    9. Number_of_MM (number of total mismatches of HE_Sequence compare to Reference_Sequence)
+    10. Number_of_Editing_Sites (number of mismatches of the ref_base to alt_base kind)
+    11. Editing_Sites_Map (key: position, value: phred quality score)
+
+second - 
+    rejected CSV with all the reads that didn't pass al least one of the conditions, 
+    with a list of the condtions it didn't pass.
+
+
+Usage:
+    python filter_clusters.py <HEreads_csv_path> <output_filtered_csv_path> <output_rejected_reads_path>
+"""
+
 import pandas as pd
 import csv
 import ast
-sample_clusters_csv = '/private10/Projects/Gili/HE_workdir/detection/detect_clusters_test/SRR11548778_A2C_output.csv'
+import sys
 
-filtered_csv_path = '/private10/Projects/Gili/HE_workdir/detection/detect_clusters_test/filtered_SRR11548778.csv'
+sample_clusters_csv = sys.argv[1]
 
-rejected_reads_path = '/private10/Projects/Gili/HE_workdir/detection/detect_clusters_test/rejected_SRR11548778.csv'
+filtered_csv_path = sys.argv[2]
+
+rejected_reads_path = sys.argv[3]
 
 # Open the Filteres reads output file for writing
 filtered_csv = open(filtered_csv_path, "w", newline='')
 csv_writer_filtered = csv.writer(filtered_csv)
-filtered_header = ['Read_ID', 'Chromosome', 'Position','Alignment_length', 'Reference_Sequence', 'cigar','blocks', 'HE_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_Fracture', 'Editing_Sites_List']
+filtered_header = ['Read_ID', 'Chromosome', 'Position','Alignment_length', 'Reference_Sequence', 'cigar','blocks', 'HE_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_Fracture', 'Editing_Sites_Map']
 csv_writer_filtered.writerow(filtered_header)
 
 # Open the Filteres reads output file for writing
@@ -37,7 +70,7 @@ for read in clusters_df.itertuples():
         csv_writer_rejected.writerow([read[0], rejected_condition_list])
         continue
 
-    editing_sites_map = ast.literal_eval(read.Editing_Sites_List)
+    editing_sites_map = ast.literal_eval(read.Editing_Sites_Map)
     # last position of editing site list minus first position of editing sites list
     cluster_len = max(editing_sites_map.keys()) - min(editing_sites_map.keys())
     #FILTER - 
@@ -68,7 +101,8 @@ for read in clusters_df.itertuples():
         # Write to output file if all conditions are passed
         csv_writer_filtered.writerow(read)
     else: # write to rejected output file if read did not pass the constions
-        csv_writer_rejected.writerow([read[0] , ",".join(condition for condition in rejected_condition_list)])
+        # csv_writer_rejected.writerow([read[0] , ",".join(condition for condition in rejected_condition_list)])
+        csv_writer_rejected.writerow([read[0] , rejected_condition_list])
 
 # Close all the files
 filtered_csv.close()

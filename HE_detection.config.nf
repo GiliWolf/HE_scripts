@@ -12,10 +12,11 @@ executor {
 
 params {
     // Input paths:
-    SE_HE_reads="/private10/Projects/Gili/HE_workdir/first_part/SE_test/re-transform/A2C/*.sam"
+    SE_HE_reads="/private10/Projects/Gili/HE_workdir/first_part/SE_test/re-transform/**/*.sam"
     pair_end=0
     fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
     detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/detect_clusters.py"
+    filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
     file_seperator="_"
     python_command ="python"
 
