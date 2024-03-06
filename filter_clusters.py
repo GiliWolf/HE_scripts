@@ -3,7 +3,13 @@ Author: Gili Wolf
 Date: 06-03-2024
 Levanon Lab
 ----------------------------
-This script is designed to filter HE read based on pre-defined conditions.
+This script is designed to filter HE read based on pre-defined conditions:
+    (-) number of editing sites is bigger than 0
+    (-) Editing fracture bigger than threshold
+    (-) phred score of each editing site bigger than threshold
+    (-) number of editing sites to read's length ratio
+    (-) density of the clusters
+
 the script output 2 CSV file: 
 first - 
     filtered CSV with the information of the reads which passed all of the conditions,
@@ -34,10 +40,9 @@ import csv
 import ast
 import sys
 
+# get arguments
 sample_clusters_csv = sys.argv[1]
-
 filtered_csv_path = sys.argv[2]
-
 rejected_reads_path = sys.argv[3]
 
 # Open the Filteres reads output file for writing
@@ -65,6 +70,7 @@ for read in clusters_df.itertuples():
     conditions_flag = True
     rejected_condition_list =[]
 
+    # number of editing sites is bigger than 0 
     if (read.Number_of_Editing_Sites) == 0:
         rejected_condition_list.append('no editing sites')
         csv_writer_rejected.writerow([read[0], rejected_condition_list])
@@ -105,5 +111,6 @@ for read in clusters_df.itertuples():
         csv_writer_rejected.writerow([read[0] , rejected_condition_list])
 
 # Close all the files
+filtered_csv.close()
 filtered_csv.close()
 rejected_reads.close()
