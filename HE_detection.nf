@@ -70,5 +70,5 @@ workflow {
     // samples_ch.view()
     detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
     after_filtiration_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
-    after_filtiration_ch.view()
+
 }

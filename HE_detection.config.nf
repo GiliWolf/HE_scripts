@@ -21,7 +21,7 @@ params {
     python_command ="python"
 
     // Output dir:
-    outdir = "detection/first_try"
+    outdir = "detection/second_try"
     detect_output_dir = "${params.outdir}/detected_clusters"
     filter_output_dir = "${params.outdir}/filtered_clusters"
 
