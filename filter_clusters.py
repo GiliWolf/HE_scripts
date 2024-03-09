@@ -83,27 +83,18 @@ rejected_rows = []
 clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
 
 
-def check_Condition(value, condition, threshold ,condition_map):
-    # condition passed:
-    if value > threshold:
-        condition_map[condition] = True
-        return condition_map
-    # condition didn't pass
-    condition_map[condition] = False
-    return condition_map
-
+def check_Condition(value, threshold):
+    return value > threshold
 
 # itearte over each row in the csv file
 for read in clusters_df.itertuples():
 
-    # intialize map to store whether a condition is passed or not :
-    condition_map = {'Edited': False, 'Min_Editing_Sites': False, 'Min_Editing_to_Total_MM_Fraction': False, 'Min_Editing_Phred_Score': False, 'Min_Editing_to_Read_Length_Ratio': False, 'Min_Cluster_Length_to_Read_Length_Ratio': False, 'Passed_All': False}
+    # Initialize flag to track if all conditions passed
+    passed_all_conditions = True
 
-    # if no editing sites detectes - continue to the next read
-    if (read.Number_of_Editing_Sites) == 0:
+    # if no editing sites detected - continue to the next read
+    if read.Number_of_Editing_Sites == 0:
         continue
-    else:
-        condition_map['Edited'] = True
     
     # parse the EditingSites_to_PhredScore_Map (presented as string)
     editing_sites_map = ast.literal_eval(read.EditingSites_to_PhredScore_Map)
@@ -111,46 +102,23 @@ for read in clusters_df.itertuples():
     # cluster_len = last position of editing site list minus first position of editing sites list
     cluster_len = max(editing_sites_map.keys()) - min(editing_sites_map.keys())
 
+    # Check conditions
+    min_editing_sites_passed = check_Condition(read.Number_of_Editing_Sites, args.min_editing_sites)
+    min_editing_fraction_passed = check_Condition(read.Editing_to_Total_MM_Fraction, args.min_editing_fraction)
+    min_phred_score_passed = all(edit_site_value > args.min_phred_score for edit_site_value in editing_sites_map.values())
+    min_es_length_ratio_passed = check_Condition(read.Number_of_Editing_Sites / read.Alignment_length, args.min_es_length_ratio)
+    min_cluster_length_ratio_passed = check_Condition(cluster_len / read.Alignment_length, args.min_cluster_length_ratio)
 
-    #FILTER - 
-    # Number of editing sites bigger than minimum
-    condition_map = check_Condition(read.Number_of_Editing_Sites,
-                                    'Min_Editing_Sites',
-                                    min_editing_sites, 
-                                    condition_map)
-    
-    # Editing fracture bigger than minimum
-    condition_map = check_Condition(read.Editing_to_Total_MM_Fraction,
-                                    'Min_Editing_to_Total_MM_Fraction',
-                                    min_editing_fraction, 
-                                    condition_map)
-    
-    # phred score of each editing sites
-    for edit_site_position, edit_site_value in editing_sites_map.items():
-        condition_map = check_Condition(edit_site_value,
-                                        'Min_Editing_Phred_Score',
-                                        min_phred_score,
-                                        condition_map)
-    
-    # number of editing sites to read's length ratio
-    condition_map = check_Condition(read.Number_of_Editing_Sites / read.Alignment_length,
-                                    'Min_Editing_to_Read_Length_Ratio',
-                                    min_es_length_ratio,
-                                    condition_map)
+    #list of conditions -
+    conditions_list = [min_editing_sites_passed, min_editing_fraction_passed, min_phred_score_passed, min_es_length_ratio_passed, min_cluster_length_ratio_passed]
 
-    # density of the clusters:
-    condition_map = check_Condition(cluster_len / read.Alignment_length,
-                                    'Min_Cluster_Length_to_Read_Length_Ratio',
-                                    min_cluster_length_ratio,
-                                    condition_map)
+    # Update passed_all_conditions flag
+    passed_all_conditions = all(conditions_list)
 
-    if all(condition_map.values()):
-        # Append to filtered rows if all conditions are passed
-        condition_map['Passed_All'] = True
+    # Append read to filtered rows or rejected rows accordingly
+    if passed_all_conditions:
         filtered_rows.append(read)
-    # [passed_flag for passed_flag in condition_map.values()]
-    rejected_rows.append([passed_flag for passed_flag in condition_map.values()])
-
+    rejected_rows.append([read[0]] + [passed_all_conditions] + conditions_list)
 
 # Write all the rows to the filtered CSV file
 with open(filtered_csv_path, 'w', newline='') as filtered_csv:
@@ -164,7 +132,8 @@ with open(filtered_csv_path, 'w', newline='') as filtered_csv:
 with open(rejected_reads_path, 'w', newline='') as rejected_csv:
     csv_writer_rejected = csv.writer(rejected_csv)
     # Write header
-    csv_writer_rejected.writerow(list(condition_map.keys()))
+    condition_header = ['Read_ID', 'Passed_All', 'Min_Editing_Sites', 'Min_Editing_to_Total_MM_Fraction', 'Min_Editing_Phred_Score', 'Min_Editing_to_Read_Length_Ratio', 'Min_Cluster_Length_to_Read_Length_Ratio']
+    csv_writer_rejected.writerow(condition_header)
     # Write all rows
     csv_writer_rejected.writerows(rejected_rows)
 
