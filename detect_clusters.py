@@ -157,8 +157,7 @@ for read in bam_file:
         editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
 
         # Write the parameters to the CSV file:
-        # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence', 'cigar','Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
-        # rows.append([read.query_name, chromosome, position, allignment_length, read_sequence, reference_sequence,cigar, genomic_blocks,read_blocks,  num_of_mm, num_of_editing_sites,editing_fracture, editing_sites])
+        # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
         row = [
             read.query_name, chromosome, position, allignment_length, read_sequence,visualize_allignment, reference_sequence,
             cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture,
