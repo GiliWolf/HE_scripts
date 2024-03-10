@@ -2,6 +2,16 @@ import subprocess
 import itertools
 import pandas as pd
 import os
+import json
+
+# for creating json files:
+# import json
+
+# data = {'name': 'John', 'age': 30}
+
+# with open('data.json', 'w') as f:
+#     json.dump(data, f)
+
 
 # Define the parameter grid
 param_grid = {
@@ -43,28 +53,55 @@ for params in param_combinations:
     command.extend(command_parameters)
 
     def analyze_Files():
-        df = pd.read_csv(filtered_output_path)
-        number_of_filtered_reads = df.shape[0]
-        print("number of filtererd reads: ", number_of_filtered_reads)
+        df = pd.read_csv('/private10/Projects/Gili/HE_workdir/detection/grid_search/A2C_SRR11548778_0_0.5_30_0.03_0.01_condition_analysis')
+        # Get the list of condition columns
+        condition_columns = df.columns[2:]
 
-    # run
-    # process = subprocess.run(command, capture_output=True, text=True)
-    try:
-        process = subprocess.run(command, capture_output=True, text=True, check=True)
-        analyze_Files()
-    # Check if the process completed successfully
-        if process.returncode != 0:
-            print("Process failed with return code:", process.returncode)
-        # # Print stdout
-        # print("STDOUT:")
-        # print(process.stdout)
-        # # Print stderr
-        # print("STDERR:")
-        # print(process.stderr)
-    except subprocess.CalledProcessError as e:
-        # Print error message if the process failed
-        print("Error:", e)
-        print("STDERR from subprocess:")
-        print(e.stderr)
+        json_data = {}
+        number_of_filtered_reads = df['Passed_All'].sum()
+        json_data["number of filtererd reads: "] = int(number_of_filtered_reads)
 
+        each_condition = df.drop(columns=['Read_ID', 'Passed_All']).sum()
+        rc_condition_map ={}
+        for condition, reads_count in each_condition.items():
+            rc_condition_map[condition] = int(reads_count)
+        json_data["number of filtererd reads for each condition:"] = rc_condition_map
+
+        # Create a dictionary to store the number of reads that passed all conditions for each subset
+        subset_passed_counts = {}
+        m = len(condition_columns) - 1
+        # Iterate over all possible subsets of M conditions
+        for subset in itertools.combinations(condition_columns, m):
+            # Calculate the number of reads that passed all conditions in the current subset
+            subset_key = "_".join(subset)
+            passed_subset = df[df[list(subset)].all(axis=1)]
+            num_passed_subset = passed_subset.shape[0]
+            # Store the count in the dictionary
+            subset_passed_counts[subset_key] = int(num_passed_subset)
+        json_data["Number of reads that passed each subset of conditions:"] = subset_passed_counts
+
+        with open('data.json', 'w') as f:
+            json.dump(json_data, f, indent = 4)
+
+    analyze_Files()
     break
+
+    # try:
+    #     process = subprocess.run(command, capture_output=True, text=True, check=True)
+    #     analyze_Files()
+    # # Check if the process completed successfully
+    #     if process.returncode != 0:
+    #         print("Process failed with return code:", process.returncode)
+    #     # # Print stdout
+    #     # print("STDOUT:")
+    #     # print(process.stdout)
+    #     # # Print stderr
+    #     # print("STDERR:")
+    #     # print(process.stderr)
+    # except subprocess.CalledProcessError as e:
+    #     # Print error message if the process failed
+    #     print("Error:", e)
+    #     print("STDERR from subprocess:")
+    #     print(e.stderr)
+
+    # break

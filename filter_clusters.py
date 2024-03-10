@@ -64,7 +64,7 @@ parser.add_argument("-cl2l", "--min_cluster_length_ratio", dest ="min_cluster_le
 args = parser.parse_args()
 
 #TO-DO - 
-#   2. set of combination parameters  - multiple rung with different parametes. with json?
+#   1. 'Edited' column: save reads that were not edited?
 
 # get arguments
 sample_clusters_csv = str(args.sample_clusters_csv).strip()
@@ -131,7 +131,7 @@ with open(filtered_csv_path, 'w', newline='') as filtered_csv:
 with open(condition_analysis_path, 'w', newline='') as condition_analysis_csv:
     csv_writer_condition_analysis = csv.writer(condition_analysis_csv)
     # Write header
-    condition_header = ['Read_ID', 'Passed_All', 'Edited' 'Min_Editing_Sites', 'Min_Editing_to_Total_MM_Fraction', 'Min_Editing_Phred_Score', 'Min_Editing_to_Read_Length_Ratio', 'Min_Cluster_Length_to_Read_Length_Ratio']
+    condition_header = ['Read_ID', 'Passed_All', 'Edited', 'Min_Editing_Sites', 'Min_Editing_to_Total_MM_Fraction', 'Min_Editing_Phred_Score', 'Min_Editing_to_Read_Length_Ratio', 'Min_Cluster_Length_to_Read_Length_Ratio']
     csv_writer_condition_analysis.writerow(condition_header)
     # Write all rows
     csv_writer_condition_analysis.writerows(condition_analysis_rows)
