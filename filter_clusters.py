@@ -131,7 +131,7 @@ with open(filtered_csv_path, 'w', newline='') as filtered_csv:
 with open(condition_analysis_path, 'w', newline='') as condition_analysis_csv:
     csv_writer_condition_analysis = csv.writer(condition_analysis_csv)
     # Write header
-    condition_header = ['Read_ID', 'Passed_All', 'Edited', 'Min_Editing_Sites', 'Min_Editing_to_Total_MM_Fraction', 'Min_Editing_Phred_Score', 'Min_Editing_to_Read_Length_Ratio', 'Min_Cluster_Length_to_Read_Length_Ratio']
+    condition_header = ['Read_ID', 'Passed_All', 'Edited', 'Min_Editing_Sites_' + str(args.min_editing_sites), 'Min_Editing_to_Total_MM_Fraction_' + str(args.min_editing_fraction), 'Min_Editing_Phred_Score_' + str(args.min_phred_score), 'Min_Editing_to_Read_Length_Ratio_' + str(args.min_es_length_ratio), 'Min_Cluster_Length_to_Read_Length_Ratio_' + str(args.min_cluster_length_ratio)]
     csv_writer_condition_analysis.writerow(condition_header)
     # Write all rows
     csv_writer_condition_analysis.writerows(condition_analysis_rows)
