@@ -26,6 +26,7 @@ filter_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.
 input_file = "/private10/Projects/Gili/HE_workdir/detection/second_try/detected_clusters/A2C/A2C_SRR11548778_re-transformed_detected.csv"
 sample_id = "A2C_SRR11548778"
 output_dir = "/private10/Projects/Gili/HE_workdir/detection/grid_search"
+output_files_type = 'analysis'
 
 
 #create json file summarizing key statistics from the output file
@@ -96,6 +97,7 @@ def run_script(params):
     command.extend(['-i', input_file])
     command.extend(['-o', filtered_output_path])
     command.extend(['-O', condition_analysis_output_path])
+    command.extend(['-t', output_files_type])
     command.extend(command_parameters)
 
     try:

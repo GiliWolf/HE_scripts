@@ -17,7 +17,12 @@ the script output 2 CSV file:
 ----------------------------
 
 Usage:
-    filter_clusters.py -i <SAMPLE_CLUSTERS_CSV> -o <FILTERED_CSV_PATH> -O <CONDITION_ANALYSIS_PATH> [Options..]
+    filter_clusters.py -i <SAMPLE_CLUSTERS_CSV> [-o <FILTERED_CSV_PATH> -O <CONDITION_ANALYSIS_PATH>] [Options..]
+
+output files:
+    -o --filtered_output            path to the read's filtered output.
+    -O --detailed_condition_output  path to the read's csv file with all the conditions anaylsis output
+    -t --output_types"              choose the type of output: 'all', 'filtered', 'analysis'
 
 optional arguments:
   -es --min_editing_sites           MIN_EDITING_SITES
@@ -45,11 +50,10 @@ from itertools import combinations
 
 #Controling Arguments:
 parser = argparse.ArgumentParser(description="This script is designed to filter HE read based on pre-defined conditions.")
-# Input & Output Paths
+# REQUIRED: Input & Output Paths
 parser.add_argument("-i", "--input", dest ="sample_clusters_csv", type=str, required=True, help="path to the read's detected cluster (output of detect_clusters.py).")
-parser.add_argument("-o", "--filtered_output", dest ="filtered_csv_path", type=str, required=True, help="path to the read's filtered output.")
-parser.add_argument("-O", "--detailed_condition_output", dest ="condition_analysis_path", type=str, required=True, help="path to the read's csv file with all the condtions detailed output.")
-# Conditions parameters
+
+# OPTIONAL: Conditions parameters
 # min_editing_sites, default 0 
 parser.add_argument("-es", "--min_editing_sites", dest ="min_editing_sites", type=int, required=False, default=0, help="minimum number of editing sites.")
 # Editing_to_Total_MM_Fraction, default 0.7 
@@ -60,6 +64,11 @@ parser.add_argument("-ps", "--min_phred_score", dest ="min_phred_score", type=in
 parser.add_argument("-es2l", "--min_es_length_ratio", dest ="min_es_length_ratio", type=float, required=False, default=0.05, help="minimum ratio of: number of editing sites to read's length")
 # ratio of clusters length to read length, default 0.01 
 parser.add_argument("-cl2l", "--min_cluster_length_ratio", dest ="min_cluster_length_ratio", type=float, required=False, default=0.1, help="minimum ratio of: cluster's length to read's length")
+
+# OPTIONAL: control output files
+parser.add_argument("-o", "--filtered_output", dest ="filtered_csv_path", type=str, required=False, default = "filtered.csv", help="path to the read's filtered output.")
+parser.add_argument("-O", "--detailed_condition_output", dest ="condition_analysis_path", type=str, required=False, default = "condition_analysis.csv", help="path to the read's csv file with all the condtions detailed output.")
+parser.add_argument("-t", "--output_types", dest="output_types", choices=["all", "filtered", "analysis"], default="all", help="choose the type of output: 'all', 'filtered', 'analysis'")
 
 args = parser.parse_args()
 
@@ -77,6 +86,10 @@ condition_analysis_rows = []
 
 # read data from the detected clusters file
 clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
+
+# output types - 
+out_filtered = args.output_types == 'all' or args.output_types == 'filtered'
+out_analysis = args.output_types == 'all' or args.output_types == 'analysis'
 
 # True if consition passed, False if did not
 def check_Condition(value, threshold):
@@ -114,26 +127,29 @@ for read in clusters_df.itertuples():
     passed_all_conditions = all(conditions_list)
 
     # Append read to filtered rows if all parameteres were passed
-    if passed_all_conditions:
+    if passed_all_conditions and out_filtered:
         filtered_rows.append(read)
     # append details to the condition_analysis file
-    condition_analysis_rows.append([read[0]] + [passed_all_conditions] + [edited] + conditions_list)
+    if out_analysis:
+        condition_analysis_rows.append([read[0]] + [passed_all_conditions] + [edited] + conditions_list)
 
-# Write all the rows to the filtered CSV file
-with open(filtered_csv_path, 'w', newline='') as filtered_csv:
-    csv_writer_filtered = csv.writer(filtered_csv)
-    # Write header
-    csv_writer_filtered.writerow(clusters_df.columns)
-    # Write all rows
-    csv_writer_filtered.writerows(filtered_rows)
+if out_filtered:
+    # Write all the rows to the filtered CSV file
+    with open(filtered_csv_path, 'w', newline='') as filtered_csv:
+        csv_writer_filtered = csv.writer(filtered_csv)
+        # Write header
+        csv_writer_filtered.writerow(clusters_df.columns)
+        # Write all rows
+        csv_writer_filtered.writerows(filtered_rows)
 
-# Write all the rows to the condition_analysis CSV file
-with open(condition_analysis_path, 'w', newline='') as condition_analysis_csv:
-    csv_writer_condition_analysis = csv.writer(condition_analysis_csv)
-    # Write header
-    condition_header = ['Read_ID', 'Passed_All', 'Edited', 'Min_Editing_Sites_' + str(args.min_editing_sites), 'Min_Editing_to_Total_MM_Fraction_' + str(args.min_editing_fraction), 'Min_Editing_Phred_Score_' + str(args.min_phred_score), 'Min_Editing_to_Read_Length_Ratio_' + str(args.min_es_length_ratio), 'Min_Cluster_Length_to_Read_Length_Ratio_' + str(args.min_cluster_length_ratio)]
-    csv_writer_condition_analysis.writerow(condition_header)
-    # Write all rows
-    csv_writer_condition_analysis.writerows(condition_analysis_rows)
+if out_analysis:
+    # Write all the rows to the condition_analysis CSV file
+    with open(condition_analysis_path, 'w', newline='') as condition_analysis_csv:
+        csv_writer_condition_analysis = csv.writer(condition_analysis_csv)
+        # Write header
+        condition_header = ['Read_ID', 'Passed_All', 'Edited', 'Min_Editing_Sites_' + str(args.min_editing_sites), 'Min_Editing_to_Total_MM_Fraction_' + str(args.min_editing_fraction), 'Min_Editing_Phred_Score_' + str(args.min_phred_score), 'Min_Editing_to_Read_Length_Ratio_' + str(args.min_es_length_ratio), 'Min_Cluster_Length_to_Read_Length_Ratio_' + str(args.min_cluster_length_ratio)]
+        csv_writer_condition_analysis.writerow(condition_header)
+        # Write all rows
+        csv_writer_condition_analysis.writerows(condition_analysis_rows)
 
 
