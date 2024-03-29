@@ -80,7 +80,7 @@ clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
 
 # True if consition passed, False if did not
 def check_Condition(value, threshold):
-    return value > threshold
+    return value >= threshold
 
 # itearte over each row in the csv file
 for read in clusters_df.itertuples():
@@ -103,7 +103,7 @@ for read in clusters_df.itertuples():
     # Check conditions
     min_editing_sites_passed = check_Condition(read.Number_of_Editing_Sites, args.min_editing_sites)
     min_editing_fraction_passed = check_Condition(read.Editing_to_Total_MM_Fraction, args.min_editing_fraction)
-    min_phred_score_passed = any(edit_site_value < args.min_phred_score for edit_site_value in editing_sites_map.values())
+    min_phred_score_passed = not any(edit_site_value < args.min_phred_score for edit_site_value in editing_sites_map.values()) # if one or more is less than the min phred score, not passed
     min_es_length_ratio_passed = check_Condition(read.Number_of_Editing_Sites / read.Alignment_length, args.min_es_length_ratio)
     min_cluster_length_ratio_passed = check_Condition(cluster_len / read.Alignment_length, args.min_cluster_length_ratio)
 

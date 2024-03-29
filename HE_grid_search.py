@@ -3,14 +3,7 @@ import itertools
 import pandas as pd
 import os
 import json
-
-# for creating json files:
-# import json
-
-# data = {'name': 'John', 'age': 30}
-
-# with open('data.json', 'w') as f:
-#     json.dump(data, f)
+from concurrent.futures import ThreadPoolExecutor
 
 
 # Define the parameter grid
@@ -84,8 +77,7 @@ def create_json(analysis_file, json_path):
         json.dump(json_data, f, indent = 4)
 
 
-#  Run the script for each parameter combination
-for params in param_combinations:
+def run_script(params):
     # Construct the command to run the script with the current parameters
     command = [python_command, filter_script]
     command_parameters = []
@@ -107,8 +99,11 @@ for params in param_combinations:
     command.extend(command_parameters)
 
     try:
+        # run process
         process = subprocess.run(command, capture_output=True, text=True, check=True)
+        # create json
         create_json(condition_analysis_output_path,json_output_path)
+        # remove file after json analysis 
         os.remove(condition_analysis_output_path)
     # Check if the process completed successfully
         if process.returncode != 0:
@@ -128,9 +123,12 @@ for params in param_combinations:
         print(f"File {condition_analysis_output_path} does not exist.")
 
 
+# Run the script for each parameter combination concurrently
+max_parallel_threads = 5
+with ThreadPoolExecutor(max_workers = max_parallel_threads) as executor:
+    executor.map(run_script, param_combinations)
 
 
-    
  
 
 
