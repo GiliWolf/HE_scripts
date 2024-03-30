@@ -28,7 +28,8 @@ Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base
 import pysam
 import csv
 import sys
-# args parse
+import argparse
+
 
 if len(sys.argv) != 6:
     print("Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base> <alt_base>")

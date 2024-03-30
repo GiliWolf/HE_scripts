@@ -26,7 +26,7 @@ REQUIRED ARGUMENTS:
                         Path to the input CSV file.
   -id SAMPLE_ID, --sample_id SAMPLE_ID
                         Sample ID.
-  -O OUTPUT_DIR, --output_dir OUTPUT_DIR
+  -D OUTPUT_DIR, --output_dir OUTPUT_DIR
                         Path to the output directory.
 OPTIONAL ARGUMENTS:
   -th MAX_THREADS, --threads MAX_THREADS
@@ -63,7 +63,7 @@ parser = argparse.ArgumentParser(description="""
 # IO FILES
 parser.add_argument("-i","--input",dest = "input_file", required=True, type=str, help="Path to the input CSV file.")
 parser.add_argument("-id", "--sample_id",dest = "sample_id", required=True, type=str, help="Sample ID.")
-parser.add_argument("-O", "--output_dir", dest = "output_dir", required=True, type=str, help="Path to the output directory.")
+parser.add_argument("-D", "--output_dir", dest = "output_dir", required=True, type=str, help="Path to the output directory.")
 # PARALLEL PARAMETERS:
 parser.add_argument("-th", "--threads", dest = "max_threads", required=False, type=int, default=5, help="max number of threads.")
 
