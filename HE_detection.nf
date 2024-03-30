@@ -18,9 +18,9 @@ process DETECT {
         ref_base = comb_bases_list[0]
         alt_base = comb_bases_list[1]
 
-        //Usage: python detect_clusters.py <bam_path> <fasta_path> <output_path> <ref_base> <alt_base>
+        //detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_BASE -ab ALT_BASE [-c {all,basic}]
         """
-        ${params.python_command} ${python_script} ${file} ${genome} ${outout_path} ${ref_base} ${alt_base}
+        ${params.python_command} ${python_script} -i ${file} -g ${genome} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -c ${params.columns_select}
         
         """ 
 }

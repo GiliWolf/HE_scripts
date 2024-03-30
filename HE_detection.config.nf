@@ -26,6 +26,8 @@ params {
     detect_output_dir = "${params.outdir}/detected_clusters"
     filter_output_dir = "${params.outdir}/filtered_clusters"
 
+    // detect script argumnets - 
+    columns_select = 'all'
     // ranges of grid search
     // editing sites - 
     es_start = 0
