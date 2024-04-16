@@ -55,7 +55,7 @@ import numpy as np
 #   2- decieded which files to output
 #   3- add summarizing file
 
-#Controling Arguments:
+# Controling Arguments:
 parser = argparse.ArgumentParser(description="""
                                  This script is designed to grid-search HE filtered reads statitics, for each combination of parameters.
                                  for each arguments you need to provide min_value, max_value and size of interval.
