@@ -32,6 +32,29 @@ process FILTER {
     input:
         tuple val(base_comb), val(sample_id), path(file)
         path(filter_python_script)
+
+    output:
+        path('*')
+        // stdout
+    script:
+        filtered_output_path = "${sample_id}${params.file_seperator}filtered.csv"
+        analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
+    """
+    ${params.python_command} ${filter_python_script} \
+        -i ${file}
+        -o ${filtered_output_path} \
+        -O ${analysis_output_path} \
+        -t all
+    """
+}
+
+process GRID_SEARCH_FILTER {
+        tag "filter: ${sample_id}"
+        publishDir "${params.filter_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
+
+    input:
+        tuple val(base_comb), val(sample_id), path(file)
+        path(filter_python_script)
         path(grid_serch_python_script)
 
     output:
@@ -79,7 +102,8 @@ workflow {
         .set {samples_ch}
     // samples_ch.view()
     detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
-
-    after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+    
+    after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
+    // after_filter_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
 
 }
