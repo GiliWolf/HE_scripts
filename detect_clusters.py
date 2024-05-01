@@ -45,6 +45,7 @@ import pysam
 import csv
 import sys
 import argparse
+from Bio.Seq import Seq
 
 
 # Parse command line arguments
@@ -54,7 +55,7 @@ parser.add_argument("-g", "--fasta_path", type=str, required=True, help="Path to
 parser.add_argument("-o","--output_path", type=str, required=True, help="Path to the output CSV file.")
 parser.add_argument("-rb", "--ref_base", type=str, required=True, help="Reference base.")
 parser.add_argument("-ab", "--alt_base", type=str, required=True, help="Alternate base.")
-parser.add_argument("-c","--output_columns", type=str, choices=["all", "basic"], default='all', help="Choose the type of output columns: 'all' or 'basic' ('Read_ID', 'Chromosome', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction')")
+parser.add_argument("-c","--output_columns", type=str, choices=["all", "basic"], default='all', help="Choose the type of output columns: 'all' or 'basic' ('Read_ID', 'Chromosome', 'strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction')")
 
 args = parser.parse_args()
 # Extract command line arguments
@@ -154,11 +155,14 @@ for read in bam_file:
             read_blocks.append((read_block_start_position, read_block_end_position))
         
         allignment_length = len(reference_sequence)
-
+        # if reversed - get the reverse complemented of the alignment
+        rev_comp_seq = Seq(reference_sequence).reverse_complement() 
+        reference_sequence = str(rev_comp_seq) if read.is_reverse else reference_sequence
         # get the sequence of the read itself.
-        # if reversed - get the reverse complemented (get_forward_sequence)
-        read_sequence = read.get_forward_sequence() if read.is_reverse else read.query_alignment_sequence
+        read_sequence = read.query_alignment_sequence
         
+        # get strand orientation - f: forward, r: reverse
+        strand = 'r' if read.is_reverse else 'f'
         # initilize MM parameters:
         num_of_mm = 0 # total MM
         num_of_editing_sites = 0 # editing sites (based on the current file base combination)
@@ -175,7 +179,7 @@ for read in bam_file:
             editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
 
             row = [
-                read.query_name, chromosome, position, allignment_length, read_sequence, reference_sequence,
+                read.query_name, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
                 num_of_mm, num_of_editing_sites, editing_fracture
             ]
         else:
@@ -205,7 +209,7 @@ for read in bam_file:
             # Write the parameters to the CSV file:
              # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
             row = [
-                read.query_name, chromosome, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
+                read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
             ]
             # Convert the detected_MM_map dictionary into a list of its values and append it to the row
             row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
@@ -217,12 +221,12 @@ for read in bam_file:
 with open(output_path, 'w', newline='') as output_file:
     csv_writer = csv.writer(output_file, csv.QUOTE_MINIMAL)
     if output_columns == "basic":
-        header = ['Read_ID', 'Chromosome', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction']
+        header = ['Read_ID', 'Chromosome', 'Strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction']
     else:
         # write the header
-        header = ['Read_ID', 'Chromosome', 'Position','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map']
+        header = ['Read_ID', 'Chromosome', 'Strand', 'Position','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map']
         header.extend(mm_col_names)
-        csv_writer.writerow(header)
+    csv_writer.writerow(header)
     # Write all rows
     csv_writer.writerows(rows)
 
