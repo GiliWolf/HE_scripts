@@ -89,9 +89,6 @@ parser.add_argument("-t", "--output_types", dest="output_types", choices=["all",
 
 args = parser.parse_args()
 
-#TO-DO - 
-#   1. 'Edited' column: save reads that were not edited?
-
 # get arguments
 sample_clusters_csv = str(args.sample_clusters_csv).strip()
 passed_csv_path = str(args.passed_csv_path).strip()
@@ -120,30 +117,34 @@ def check_Condition(value, threshold):
 
 def sample_motif(nt_count_df, location, total_num_of_ES):
     nt_precentage = {'A': 0, 'C': 0, 'G': 0, 'T':0}
+    nt_count = {'A': 0, 'C': 0, 'G': 0, 'T':0}
     for nt in nt_precentage.keys():
-        perc = (nt_count_df[f'{location}_{nt}'].sum() / (total_num_of_ES))
+        total_nt_count = int(nt_count_df[f'{location}_{nt}'].sum())
+        perc = (total_nt_count / total_num_of_ES)
         nt_precentage[nt] = perc
-    return nt_precentage
+        nt_count[nt] = total_nt_count
+    return nt_precentage, nt_count
 
 #create json file summarizing key statistics of he passed rfeads
 def create_json(passed_df, condition_df):
 
     # init general data dictonary 
-    json_data = {"sample_id: ": sample_id}
+    json_data = {"sample_id:": sample_id}
     
     # add total number of filtered reads
-    json_data["number of passed reads: "] = int(condition_df['Passed_All'].sum())
+    json_data["number of passed reads:"] = int(condition_df['Passed_All'].sum())
 
     # average es number
-    average_num_of_ES = passed_df['number_of_ES'].mean()
-    json_data["average number of ES: "] = average_num_of_ES
+    average_num_of_ES = passed_df['number_of_passed_ES'].mean()
+    json_data["average number of ES:"] = average_num_of_ES
 
     # get sample ES motif
-    total_num_of_ES = passed_df['number_of_ES'].sum()
+    total_num_of_ES = passed_df['number_of_passed_ES'].sum()
     for loc in motif_location:
         nt_count_df = passed_df[[f'{loc}_{nt}' for nt in ['A', 'C', 'G', 'T']]]
-        nt_precentage =sample_motif(nt_count_df, loc, total_num_of_ES)
-        json_data[f'{loc}_motif: '] = nt_precentage
+        nt_precentage, nt_count = sample_motif(nt_count_df, loc, total_num_of_ES)
+        json_data[f'{loc}_motif_count:'] = nt_count
+        json_data[f'{loc}_motif_percentage:'] = nt_precentage
 
     # Get the list of condition columns
     condition_df = condition_df.drop(columns=['Read_ID', 'Passed_All'])
@@ -160,11 +161,11 @@ def create_json(passed_df, condition_df):
         condition_df.rename(columns={col: column_name}, inplace=True)
         # add to the parameter's values
         parameters_values[column_name] = param_value
-    json_data["Parameters' Values: "] = parameters_values
+    json_data["Parameters' Values:"] = parameters_values
 
     # Create dictionary with the sum of reads which passed each condition
     each_condition = condition_df.sum().astype(int).to_dict()
-    json_data["number of passed reads for each condition"] = each_condition
+    json_data["number of passed reads for each condition:"] = each_condition
 
     return json_data
 
@@ -191,7 +192,7 @@ def motifs_count(read_seq, editing_sites_map):
             data[f'{motif_location}_{nt}'] = count
     return data 
 
-# calculat and returns average phred score for all of the ES, and averge of al distances netween adjactent ES
+# calculate and returns average phred score for all of the ES, and averge of al distances netween adjactent ES
 def es_statistics(editing_sites_map):
     phred_scores = editing_sites_map.values()
     phred_score_avg = sum(phred_scores) / len(phred_scores)
@@ -199,10 +200,19 @@ def es_statistics(editing_sites_map):
     es_positions.sort()
     avg_lambda_func =  lambda es_positions: sum(abs(es_positions[i+1] - es_positions[i]) for i in range(0, len(es_positions) - 1)) / len(es_positions)
     avg_es_distance = avg_lambda_func(es_positions)
-    num_of_es = len(editing_sites_map)
-    return phred_score_avg, avg_es_distance, num_of_es
+    return phred_score_avg, avg_es_distance
 
-    
+# for each ES checks if the phred score is bigger then the threshold
+# if so  - consider it as passed ES 
+# returns number of passed ES ad the position-phred score map of the passed ES
+def filter_ES(editing_sites_map, score_threshold):
+    num_of_passed_ES = 0
+    passed_ES_map = {}
+    for pos, score in editing_sites_map.items():
+        if score >= score_threshold:
+            num_of_passed_ES += 1
+            passed_ES_map[pos] = score
+    return num_of_passed_ES, passed_ES_map
 
 # itearte over each row in the csv file
 for read in clusters_df.itertuples():
@@ -210,23 +220,32 @@ for read in clusters_df.itertuples():
     # Initialize flag to track if all conditions passed
     passed_all_conditions = True
     edited = False
-    # if no editing sites detected - continue to the next read
-    # (keep column 'Edited' as False)
-    if read.Number_of_Editing_Sites == 0:
-        continue
-    edited = True
     
     # parse the EditingSites_to_PhredScore_Map (presented as string)
     editing_sites_map = ast.literal_eval(read.EditingSites_to_PhredScore_Map)
-
-    # cluster_len = last position of editing site list minus first position of editing sites list
-    cluster_len = max(editing_sites_map.keys()) - min(editing_sites_map.keys())
+    total_num_of_ES = read.Number_of_Editing_Sites
 
     # Check conditions
-    min_editing_sites_passed = check_Condition(read.Number_of_Editing_Sites, args.min_editing_sites)
+
+    # filter ES - count numer of ES bigger or equal to threshold. 
+    # if the count is less than the minimum number of ES, the read did not passed this condition.
+    # !!!!!!!!!!!!!!! ALL OTHER CONDITIONS WILL BE CHECKED ONLY ON THE PASSED ES !!!!!!!!!!!!!!!!!!
+    num_of_passed_ES, passed_ES_map = filter_ES(editing_sites_map, args.min_phred_score)
+    min_phred_score_passed = True if num_of_passed_ES >= args.min_editing_sites else False
+
+    # if no passed editing sites detected - continue to the next read
+    # (keep column 'Edited' as False)
+    if num_of_passed_ES == 0:
+        continue
+    # else - read was edited
+    edited = True
+    
+    # cluster_len = last position of editing site list minus first position of editing sites list
+    cluster_len = max(passed_ES_map.keys()) - min(passed_ES_map.keys())
+
+    min_editing_sites_passed = check_Condition(num_of_passed_ES, args.min_editing_sites)
     min_editing_fraction_passed = check_Condition(read.Editing_to_Total_MM_Fraction, args.min_editing_fraction)
-    min_phred_score_passed = not any(edit_site_value < args.min_phred_score for edit_site_value in editing_sites_map.values()) # if one or more is less than the min phred score, not passed
-    min_es_length_ratio_passed = check_Condition(read.Number_of_Editing_Sites / read.Alignment_length, args.min_es_length_ratio)
+    min_es_length_ratio_passed = check_Condition(num_of_passed_ES / read.Alignment_length, args.min_es_length_ratio)
     min_cluster_length_ratio_passed = check_Condition(cluster_len / read.Alignment_length, args.min_cluster_length_ratio)
 
     #list of conditions -
@@ -237,9 +256,9 @@ for read in clusters_df.itertuples():
 
     # if read passed all parameteres add a row to the passed_statisctics
     if passed_all_conditions and out_passed:
-        avg_phred_score, avg_es_distance, num_of_es = es_statistics(editing_sites_map)
-        motifs_count_data = motifs_count(read.Read_Sequence, editing_sites_map)
-        es_statistics_data = {'number_of_ES': num_of_es, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
+        avg_phred_score, avg_es_distance= es_statistics(passed_ES_map)
+        motifs_count_data = motifs_count(read.Read_Sequence, passed_ES_map)
+        es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
         all_data = {"Read_ID": read[0]}
         all_data.update(es_statistics_data)
         all_data.update(motifs_count_data)
