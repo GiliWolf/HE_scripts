@@ -6,23 +6,23 @@ Levanon Lab
 This script is designed to filter HE read based on pre-defined conditions:
     (-) number of editing sites is bigger than 0
     (-) number of editing sites is bigger than threshold
-    (-) Editing fracture bigger than threshold
+    (-) Editing fraction bigger than threshold
     (-) phred score of each editing site bigger than threshold
     (-) number of editing sites to read's length ratio
     (-) density of the clusters (length of the cluster to read's length ratio)
 
 the script output 2 CSV file: 
-1 - filtered csv with the information of the reads that passed all of the consitions 
+1 - passed csv with the information of the reads that passed all of the consitions 
 2 - condition_analysis CSV file with one-hot encoded analysis for each of the conditions
 ----------------------------
 
 Usage:
-    filter_clusters.py -i <SAMPLE_CLUSTERS_CSV> [-o <FILTERED_CSV_PATH> -O <CONDITION_ANALYSIS_PATH>] [Options..]
+    filter_clusters.py -i <SAMPLE_CLUSTERS_CSV> [-o <passed_CSV_PATH> -O <CONDITION_ANALYSIS_PATH>] [Options..]
 
 output files:
-    -o --filtered_output            path to the read's filtered output.
+    -o --passed_output            path to the read's passed output.
     -O --detailed_condition_output  path to the read's csv file with all the conditions anaylsis output
-    -t --output_types"              choose the type of output: 'all', 'filtered', 'analysis'
+    -t --output_types"              choose the type of output: 'all', 'passed', 'analysis'
 
 optional arguments:
   -es --min_editing_sites           MIN_EDITING_SITES
@@ -66,9 +66,9 @@ parser.add_argument("-es2l", "--min_es_length_ratio", dest ="min_es_length_ratio
 parser.add_argument("-cl2l", "--min_cluster_length_ratio", dest ="min_cluster_length_ratio", type=float, required=False, default=0.1, help="minimum ratio of: cluster's length to read's length")
 
 # OPTIONAL: control output files
-parser.add_argument("-o", "--filtered_output", dest ="filtered_csv_path", type=str, required=False, default = "filtered.csv", help="path to the read's filtered output.")
+parser.add_argument("-o", "--passed_output", dest ="passed_csv_path", type=str, required=False, default = "passed.csv", help="path to the read's passed output.")
 parser.add_argument("-O", "--detailed_condition_output", dest ="condition_analysis_path", type=str, required=False, default = "condition_analysis.csv", help="path to the read's csv file with all the condtions detailed output.")
-parser.add_argument("-t", "--output_types", dest="output_types", choices=["all", "filtered", "analysis"], default="all", help="choose the type of output: 'all', 'filtered', 'analysis'")
+parser.add_argument("-t", "--output_types", dest="output_types", choices=["all", "passed", "analysis"], default="all", help="choose the type of output: 'all', 'passed', 'analysis'")
 
 args = parser.parse_args()
 
@@ -77,18 +77,18 @@ args = parser.parse_args()
 
 # get arguments
 sample_clusters_csv = str(args.sample_clusters_csv).strip()
-filtered_csv_path = str(args.filtered_csv_path).strip()
+passed_csv_path = str(args.passed_csv_path).strip()
 condition_analysis_path = str(args.condition_analysis_path).strip()
 
 # Initialize lists to store rows
-filtered_rows = []
+passed_rows = []
 condition_analysis_rows = []
 
 # read data from the detected clusters file
 clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
 
 # output types - 
-out_filtered = args.output_types == 'all' or args.output_types == 'filtered'
+out_passed = args.output_types == 'all' or args.output_types == 'passed'
 out_analysis = args.output_types == 'all' or args.output_types == 'analysis'
 
 # True if consition passed, False if did not
@@ -126,21 +126,21 @@ for read in clusters_df.itertuples():
     # Update passed_all_conditions flag
     passed_all_conditions = all(conditions_list)
 
-    # Append read to filtered rows if all parameteres were passed
-    if passed_all_conditions and out_filtered:
-        filtered_rows.append(read)
+    # Append read to passed rows if all parameteres were passed
+    if passed_all_conditions and out_passed:
+        passed_rows.append(read)
     # append details to the condition_analysis file
     if out_analysis:
         condition_analysis_rows.append([read[0]] + [passed_all_conditions] + [edited] + conditions_list)
 
-if out_filtered:
-    # Write all the rows to the filtered CSV file
-    with open(filtered_csv_path, 'w', newline='') as filtered_csv:
-        csv_writer_filtered = csv.writer(filtered_csv)
+if out_passed:
+    # Write all the rows to the passed CSV file
+    with open(passed_csv_path, 'w', newline='') as passed_csv:
+        csv_writer_passed = csv.writer(passed_csv)
         # Write header
-        csv_writer_filtered.writerow(clusters_df.columns)
+        csv_writer_passed.writerow(clusters_df.columns)
         # Write all rows
-        csv_writer_filtered.writerows(filtered_rows)
+        csv_writer_passed.writerows(passed_rows)
 
 if out_analysis:
     # Write all the rows to the condition_analysis CSV file
