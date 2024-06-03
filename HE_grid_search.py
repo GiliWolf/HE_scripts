@@ -51,6 +51,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 import argparse
 import numpy as np
+import glob
 # TO-DO:
 #   2- decieded which files to output
 #   3- add summarizing file
@@ -62,6 +63,8 @@ parser = argparse.ArgumentParser(description="""
                                  """)
 # IO FILES
 parser.add_argument("-i","--input",dest = "input_file", required=True, type=str, help="Path to the input CSV file.")
+parser.add_argument("-s","--script",dest = "filter_script_path", required=True, type=str, help="Path to the filter script. (python)")
+parser.add_argument("-bc","--base_comb",dest = "base_comb", required=True, type=str, help="bases combination.")
 parser.add_argument("-id", "--sample_id",dest = "sample_id", required=True, type=str, help="Sample ID.")
 parser.add_argument("-D", "--output_dir", dest = "output_dir", required=True, type=str, help="Path to the output directory.")
 # PARALLEL PARAMETERS:
@@ -92,7 +95,7 @@ param_combinations = list(itertools.product(*param_grid.values()))
 
 # outer script
 python_command = "python"
-filter_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
+filter_script = args.filter_script_path
 
 # file parameters
 # input_file = "/private10/Projects/Gili/HE_workdir/detection/second_try/detected_clusters/A2C/A2C_SRR11548778_re-transformed_detected.csv"
@@ -101,58 +104,11 @@ filter_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.
 input_file = args.input_file
 sample_id = args.sample_id
 output_dir = args.output_dir
-output_files_type = 'analysis'
+output_files_type = 'all'
+output_merged_file = str(sample_id) + "_merged_file.json"
+base_comb = args.base_comb
 
-
-#create json file summarizing key statistics from the output file
-def create_json(analysis_file, json_path):
-    df = pd.read_csv(analysis_file)
-
-    # init general data dictonary 
-    json_data = {}
-
-    # add total number of filtered reads
-    json_data["number of filtererd reads: "] = int(df['Passed_All'].sum())
-
-    # Get the list of condition columns
-    conditions_df = df.drop(columns=['Read_ID', 'Passed_All'])
-
-    # get values of parameters for each column and remove it from the name
-    parameters_values = {}
-    for col in conditions_df.columns:
-        if (col == 'Edited'):
-            continue
-        # extract param's value
-        param_value = col.rsplit('_', 1)[-1]
-        # rename the columns to discard the param's value
-        column_name = col.rsplit('_', 1)[0]
-        conditions_df.rename(columns={col: column_name}, inplace=True)
-        # add to the parameter's values
-        parameters_values[column_name] = param_value
-    json_data["Parameters' Values: "] = parameters_values
-
-    # Create dictionary with the sum of reads which passed each condition
-    each_condition = conditions_df.sum().astype(int).to_dict()
-    json_data["number of filtered reads for each condition"] = each_condition
-
-    # # Create a dictionary to store the number of reads that passed all conditions for each subset
-    # subset_passed_counts = {}
-    # m = len(conditions_df) - 1
-    # # Iterate over all possible subsets of M conditions
-    # for subset in itertools.combinations(conditions_df, m):
-    #     # Calculate the number of reads that passed all conditions in the current subset
-    #     subset_key = "_".join(subset)
-    #     passed_subset = df[df[list(subset)].all(axis=1)]
-    #     num_passed_subset = passed_subset.shape[0]
-    #     # Store the count in the dictionary
-    #     subset_passed_counts[subset_key] = int(num_passed_subset)
-    # json_data["Number of reads that passed each subset of conditions:"] = subset_passed_counts
-
-    # write the data to a json file
-    with open(json_path, 'w') as f:
-        json.dump(json_data, f, indent = 4)
-
-
+json_files = []
 def run_script(params):
     # Construct the command to run the script with the current parameters
     command = [python_command, filter_script]
@@ -165,23 +121,24 @@ def run_script(params):
         # add parameter to the command
         command_parameters.extend(['--' + param, str_value])
     # construct output path files
-    filtered_output_path = os.path.join(output_dir, sample_id + "_filtered" + path_parameters + ".csv")
+    filtered_output_path = os.path.join(output_dir, sample_id + "_passed" + path_parameters + ".csv")
     condition_analysis_output_path = os.path.join(output_dir, sample_id + "_condition_analysis" + path_parameters + ".csv")
     json_output_path = os.path.join(output_dir, sample_id + path_parameters + ".json")
-    # concat all parameters: input, output, grid search
+    # concat all parameters: input, output, grid search'
     command.extend(['-i', input_file])
+    command.extend(['-id', sample_id])
     command.extend(['-o', filtered_output_path])
     command.extend(['-O', condition_analysis_output_path])
+    command.extend(['-j', json_output_path])
     command.extend(['-t', output_files_type])
     command.extend(command_parameters)
+
+    # add json file to list
+    json_files.append(json_output_path)
 
     try:
         # run process
         process = subprocess.run(command, capture_output=True, text=True, check=True)
-        # create json
-        create_json(condition_analysis_output_path,json_output_path)
-        # remove file after json analysis 
-        os.remove(condition_analysis_output_path)
     # Check if the process completed successfully
         if process.returncode != 0:
             print("Process failed with return code:", process.returncode)
@@ -204,7 +161,23 @@ def run_script(params):
 with ThreadPoolExecutor(max_workers = args.max_threads) as executor:
     executor.map(run_script, param_combinations)
 
+# after all the runs - combine all json files into ine file 
+def merge_json_files(json_files):
+    merged_data = []
+    for json_file in json_files:
+        # striped_json = str(json_file).rstrip('./')
+        with open(json_file, 'r') as f:
+            merged_data.extend(json.load(f))
+    return merged_data
 
- 
+# with open(output_merged_file, "w") as outfile:
+#    outfile.write('{}'.format('\n'.join([open(f, "r").read() for f in json_files])))
+merged_data = merge_json_files(json_files)
+with open(output_merged_file, 'w') as f:
+    json.dump(merged_data, f, indent=4)
+
+#delete all files:
+for file in json_files:
+    os.remove(file)
 
 

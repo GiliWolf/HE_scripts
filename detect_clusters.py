@@ -45,7 +45,7 @@ import pysam
 import csv
 import sys
 import argparse
-from Bio.Seq import Seq
+# from Bio.Seq import Seq
 
 
 # Parse command line arguments
@@ -131,88 +131,89 @@ def identify_MM(read_ref_base, read_alt_base, quality, index, editing_sites, num
 
 # Iterate through each read in the BAM file
 for read in bam_file:
-    # keep track of all MM detected in the read
-    detected_MM_map = {'A2C_MM': [],'A2G_MM': [],'A2T_MM': [],'C2A_MM': [],'C2G_MM': [],'C2T_MM': [],'G2A_MM': [],'G2C_MM': [],'G2T_MM': [],'T2A_MM': [],'T2C_MM': [],'T2G_MM': [], 'Ref2N_MM': [], 'NtoAlt_MM': []}
-    # Check if the read is mapped
-    if not read.is_unmapped:
-        # BASIC INFO:
-        # Get the read's mapped region coordinates 
-        chromosome = bam_file.get_reference_name(read.reference_id)  # chromosome name
-        position = read.reference_start  # start position of the allignment
-        
-        # Extract the sequence from the genome:
-        # get Genomic_Position_Splicing_Blocks of alligned regions (if size of Genomic_Blocks > 1 -> the read is spliced)
-        genomic_blocks = read.get_blocks()
-        reference_sequence=""
-        # iterate over the genomic_blocks to:
-        #   1. extract refrence sequence using block[0](start position) and block[1](end position)
-        #   2. extract read_relative_splicing_blocks  - how the read is being splices based on read's positions
-        read_blocks = []
-        for block in genomic_blocks:
-            reference_sequence += str(fasta_file.fetch(chromosome, block[0], block[1])).upper()
-            read_block_start_position = block[0] - position 
-            read_block_end_position = block[1] - position
-            read_blocks.append((read_block_start_position, read_block_end_position))
-        
-        allignment_length = len(reference_sequence)
-        # if reversed - get the reverse complemented of the alignment
-        rev_comp_seq = Seq(reference_sequence).reverse_complement() 
-        reference_sequence = str(rev_comp_seq) if read.is_reverse else reference_sequence
-        # get the sequence of the read itself.
-        read_sequence = read.query_alignment_sequence
-        
-        # get strand orientation - f: forward, r: reverse
-        strand = 'r' if read.is_reverse else 'f'
-        # initilize MM parameters:
-        num_of_mm = 0 # total MM
-        num_of_editing_sites = 0 # editing sites (based on the current file base combination)
-        editing_sites = {} # map : (position: quality)
-
-        if output_columns == "basic":
-            # Extract number of MM and editing sites:
-            for i in range(min(len(reference_sequence), len(read_sequence), len(quality))):
-                read_ref_base = reference_sequence[i] #reference base of this read
-                read_alt_base = read_sequence[i] # alternate base of this read
-                if read_ref_base != read_alt_base: # MM
-                    num_of_mm += 1
-                    num_of_editing_sites = identify_Editing_Site(read_ref_base, read_alt_base,num_of_editing_sites)
-            editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
-
-            row = [
-                read.query_name, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
-                num_of_mm, num_of_editing_sites, editing_fracture
-            ]
-        else:
-            # ADDITIONAL
-            # get the cigar
-            cigar = read.cigarstring
-            # list of the quality of each base
-            quality = read.query_alignment_qualities
-            # get read's flag
-            flag = read.flag
-    
+        # keep track of all MM detected in the read
+        detected_MM_map = {'A2C_MM': [],'A2G_MM': [],'A2T_MM': [],'C2A_MM': [],'C2G_MM': [],'C2T_MM': [],'G2A_MM': [],'G2C_MM': [],'G2T_MM': [],'T2A_MM': [],'T2C_MM': [],'T2G_MM': [], 'Ref2N_MM': [], 'NtoAlt_MM': []}
+        # Check if the read is mapped
+        if not read.is_unmapped:
+            # BASIC INFO:
+            # Get the read's mapped region coordinates 
+            chromosome = bam_file.get_reference_name(read.reference_id)  # chromosome name
+            position = read.reference_start  # start position of the allignment
+            
+            # Extract the sequence from the genome:
+            # get Genomic_Position_Splicing_Blocks of alligned regions (if size of Genomic_Blocks > 1 -> the read is spliced)
+            genomic_blocks = read.get_blocks()
+            reference_sequence=""
+            # iterate over the genomic_blocks to:
+            #   1. extract refrence sequence using block[0](start position) and block[1](end position)
+            #   2. extract read_relative_splicing_blocks  - how the read is being splices based on read's positions
+            read_blocks = []
+            for block in genomic_blocks:
+                reference_sequence += str(fasta_file.fetch(chromosome, block[0], block[1])).upper()
+                read_block_start_position = block[0] - position 
+                read_block_end_position = block[1] - position
+                read_blocks.append((read_block_start_position, read_block_end_position))
+            
+            allignment_length = len(reference_sequence)
+            # if reversed - get the reverse complemented of the alignment
+            complementary = { 'A':'T', 'T':'A', 'G':'C','C':'G', 'N':'N'}
+            rev_comp_seq = ''.join(([complementary[i] for i in reversed(reference_sequence)]))
+            # reference_sequence = str(rev_comp_seq) if read.is_reverse else reference_sequence
+            # get the sequence of the read itself.
+            read_sequence = read.query_alignment_sequence
+            
+            # get strand orientation - f: forward, r: reverse
+            strand = '-' if read.is_reverse else '+'
+            # initilize MM parameters:
+            num_of_mm = 0 # total MM
+            num_of_editing_sites = 0 # editing sites (based on the current file base combination)
             editing_sites = {} # map : (position: quality)
 
-            # visualization of the allignment - '*': editing site, 'X': other MM, '|': match.
-            visualize_allignment = ''
-            # Extract MM and editing sites:
-            for i in range(min(len(reference_sequence), len(read_sequence), len(quality))):
-                read_ref_base = reference_sequence[i] #reference base of this read
-                read_alt_base = read_sequence[i] # alternate base of this read
-                if read_ref_base != read_alt_base: # MM
-                    num_of_mm += 1
-                    num_of_editing_sites, visualize_allignment = identify_MM(read_ref_base, read_alt_base, quality, i, editing_sites, num_of_editing_sites, detected_MM_map, visualize_allignment)
-                else:
-                    visualize_allignment += '|'
+            if output_columns == "basic":
+                # Extract number of MM and editing sites:
+                for i in range(min(len(reference_sequence), len(read_sequence), len(quality))):
+                    read_ref_base = reference_sequence[i] #reference base of this read
+                    read_alt_base = read_sequence[i] # alternate base of this read
+                    if read_ref_base != read_alt_base: # MM
+                        num_of_mm += 1
+                        num_of_editing_sites = identify_Editing_Site(read_ref_base, read_alt_base,num_of_editing_sites)
+                editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
 
-            editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
-            # Write the parameters to the CSV file:
-             # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
-            row = [
-                read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
-            ]
-            # Convert the detected_MM_map dictionary into a list of its values and append it to the row
-            row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
+                row = [
+                    read.query_name, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
+                    num_of_mm, num_of_editing_sites, editing_fracture
+                ]
+            else:
+                # ADDITIONAL
+                # get the cigar
+                cigar = read.cigarstring
+                # list of the quality of each base
+                quality = read.query_alignment_qualities
+                # get read's flag
+                flag = read.flag
+        
+                editing_sites = {} # map : (position: quality)
+
+                # visualization of the allignment - '*': editing site, 'X': other MM, '|': match.
+                visualize_allignment = ''
+                # Extract MM and editing sites:
+                for i in range(min(len(reference_sequence), len(read_sequence), len(quality))):
+                    read_ref_base = reference_sequence[i] #reference base of this read
+                    read_alt_base = read_sequence[i] # alternate base of this read
+                    if read_ref_base != read_alt_base: # MM
+                        num_of_mm += 1
+                        num_of_editing_sites, visualize_allignment = identify_MM(read_ref_base, read_alt_base, quality, i, editing_sites, num_of_editing_sites, detected_MM_map, visualize_allignment)
+                    else:
+                        visualize_allignment += '|'
+
+                editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
+                # Write the parameters to the CSV file:
+                # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
+                row = [
+                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
+                ]
+                # Convert the detected_MM_map dictionary into a list of its values and append it to the row
+                row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
 
         rows.append(row)
 
@@ -224,7 +225,7 @@ with open(output_path, 'w', newline='') as output_file:
         header = ['Read_ID', 'Chromosome', 'Strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction']
     else:
         # write the header
-        header = ['Read_ID', 'Chromosome', 'Strand', 'Position','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map']
+        header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based','Read_Relative_Splicing_Blocks_0based', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map']
         header.extend(mm_col_names)
     csv_writer.writerow(header)
     # Write all rows

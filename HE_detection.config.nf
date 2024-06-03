@@ -12,22 +12,42 @@ executor {
 
 params {
     // Input paths:
-    SE_HE_reads="/private10/Projects/Gili/HE_workdir/first_part/SE_test/re-transform/**/*.sam"
-    pair_end=0
-    fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
-    detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/detect_clusters.py"
-    filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
-    grid_serch_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/HE_grid_search.py"
-    file_seperator="_"
-    python_command ="python"
+        reads_suffix=".sam"
+        mate_seperator="_"
+        mate1_suff="1"
+        mate2_suff="2"
 
-    // Output dir:
-    outdir = "detection/with_grid"
-    detect_output_dir = "${params.outdir}/detected_clusters"
-    filter_output_dir = "${params.outdir}/filtered_clusters"
+        SE_HE_reads="/private10/Projects/Gili/HE_workdir/first_part/SE_test/re-transform/**/*${params.reads_suffix}"
+        PE_HE_reads = "/private10/Projects/Gili/HE_workdir/first_part/PE_test/re-transform/**/*${params.reads_suffix}"
+        pair_end=1
+        fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
+        detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/detect_clusters.py"
+        filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
+        PE_filter_python_script = ""
+        grid_serch_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/HE_grid_search.py"
+        file_seperator="_"
+        python_command ="python"
+
+    // for independent run:
+        ref_base=""
+        alt_base=""
+        
+
+    // Output dirs:
+        outdir = "detection/PE_output"
+        detect_output_dir = "${params.outdir}/detected_clusters"
+        filter_output_dir = "${params.outdir}/filtered_clusters"
+        PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
+        grid_search_output_dir  = "${params.outdir}/grid_search"
 
     // detect script argumnets - 
-    columns_select = 'all'
+        columns_select = 'all'
+    
+    // Filter PE
+        unmapped_fastq = "/private10/Projects/Gili/HE_workdir/first_part/PE_test/first_map"
+        unmapped_star_file_format_mate1 = ".Unmapped.out.mate1"
+        unmapped_star_file_format_mate2 = ".Unmapped.out.mate2"
+
     // ranges of grid search
     // editing sites - 
     es_start = 0
