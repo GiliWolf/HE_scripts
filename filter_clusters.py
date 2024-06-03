@@ -6,7 +6,7 @@ Levanon Lab
 This script is designed to filter HE read based on pre-defined conditions:
     (-) number of editing sites is bigger than 0
     (-) number of editing sites is bigger than threshold
-    (-) Editing fraction bigger than threshold
+    (-) Editing fracture bigger than threshold
     (-) phred score of each editing site bigger than threshold
     (-) number of editing sites to read's length ratio
     (-) density of the clusters (length of the cluster to read's length ratio)

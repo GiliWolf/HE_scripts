@@ -45,7 +45,7 @@ import pysam
 import csv
 import sys
 import argparse
-# from Bio.Seq import Seq
+from Bio.Seq import Seq
 
 
 # Parse command line arguments
@@ -180,7 +180,7 @@ for read in bam_file:
                 editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
 
                 row = [
-                    read.query_name, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
+                    read.query_name, chromosome, strand, strand, position, allignment_length, read_sequence, reference_sequence,
                     num_of_mm, num_of_editing_sites, editing_fracture
                 ]
             else:
@@ -210,7 +210,7 @@ for read in bam_file:
                 # Write the parameters to the CSV file:
                 # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
                 row = [
-                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
+                    read.query_name, chromosome, strand, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
                 ]
                 # Convert the detected_MM_map dictionary into a list of its values and append it to the row
                 row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
