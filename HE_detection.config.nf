@@ -16,10 +16,10 @@ params {
         mate_seperator="_"
         mate1_suff="1"
         mate2_suff="2"
-
-        SE_HE_reads="/private10/Projects/Gili/HE_workdir/first_part/SE_test/re-transform/**/*${params.reads_suffix}"
-        PE_HE_reads = "/private10/Projects/Gili/HE_workdir/first_part/PE_test/re-transform/**/*${params.reads_suffix}"
-        pair_end=1
+        input_dir="/private10/Projects/Gili/HE_workdir/first_part/GTEX_ARTERT_umap"
+        SE_HE_reads="${params.input_dir}/re-transform/**/*${params.reads_suffix}"
+        PE_HE_reads = "${params.input_dir}/re-transform/**/*${params.reads_suffix}"
+        pair_end=0
         fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
         detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/detect_clusters.py"
         filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
@@ -34,7 +34,7 @@ params {
         
 
     // Output dirs:
-        outdir = "detection/PE_output"
+        outdir = "detection/GTEX_ARTERT_umap_changed_detect"
         detect_output_dir = "${params.outdir}/detected_clusters"
         filter_output_dir = "${params.outdir}/filtered_clusters"
         PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
@@ -44,7 +44,7 @@ params {
         columns_select = 'all'
     
     // Filter PE
-        unmapped_fastq = "/private10/Projects/Gili/HE_workdir/first_part/PE_test/first_map"
+        unmapped_fastq = "${params.input_dir}/first_map"
         unmapped_star_file_format_mate1 = ".Unmapped.out.mate1"
         unmapped_star_file_format_mate2 = ".Unmapped.out.mate2"
 

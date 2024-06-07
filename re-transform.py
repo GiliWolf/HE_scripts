@@ -37,7 +37,7 @@ parser = argparse.ArgumentParser(description="This script is designed to recover
 parser.add_argument("-s", "--input_sam_file",dest ="input_sam_file", type=str, help="Input SAM file.", required=True)
 parser.add_argument("-o","--output_sam_file",dest="output_sam_file", type=str, help="Output SAM file.",required=True)
 parser.add_argument("-i", "--fastq_path", dest="fastq_path", type=str, help="Path to FASTQ file.",required=True)
-parser.add_argument("-I", "--fastq_path_mate_2", dest="fastq_path_mate2", type=str, help="Path to FASTQ file for mate2.",required=True)
+parser.add_argument("-I", "--fastq_path_mate_2", dest="fastq_path_mate2", type=str, help="Path to FASTQ file for mate2.",required=False)
 parser.add_argument("-pe","--pair_end",dest = "pair_end", type=int, choices=[0, 1], help="Specify if single-end (0) or paired-end (1) data.",required=True)
 
 args = parser.parse_args()
@@ -48,7 +48,11 @@ output_sam_file = args.output_sam_file
 mate1_path = args.fastq_path
 pair_end = args.pair_end
 if pair_end:
-    mate2_path=args.fastq_path_mate2
+    if args.fastq_path_mate2:
+        mate2_path=args.fastq_path_mate2
+    else:
+        print("re-transform.py: the following arguments is required for PE data: -I/--fastq_path_mate_2")
+        exit()
 
 
 
@@ -58,6 +62,7 @@ mate2_seqs = {}
 
 mate1_qualities = {}
 mate2_qualities = {}
+
 
 
 # Open mate1's unmapped Fastq original file and store all its read names in a set
@@ -107,5 +112,5 @@ with pysam.AlignmentFile(input_sam_file, "rb") as samfile:
                 if read.is_read2: 
                     getOriginal(read, mate2_seqs, mate2_qualities)
             else:
-                getOriginal(read, mate1_seqs, qualities)
+                getOriginal(read, mate1_seqs, mate1_qualities)
 

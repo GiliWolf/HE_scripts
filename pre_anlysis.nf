@@ -139,6 +139,8 @@ process FASTP{
                         -e ${params.avg_quality} \
                         -u ${params.low_quality_per} \
                         -q ${params.low_quality_num} \
+                        --low_complexity_filter \
+                        --complexity_threshold ${params.complexity_threshold} \
                         -j "${sample_id}.fastp.json" \
                         --dont_eval_duplication \
                         --in1 "${reads}" \
@@ -148,19 +150,21 @@ process FASTP{
         else
             """
                 #PE (run on all 1st mate files, and change the mate suffixs for 2nd mate)
-                        ${params.fastp_command} \
-                        -n ${params.N_bases_num} \
-                        -e ${params.avg_quality} \
-                        -u ${params.low_quality_per} \
-                        -q ${params.low_quality_num} \
-                        --low_complexity_filter \
-                        -j "${sample_id}.fastp.json" \
-                        --dont_eval_duplication \
-                        --in1 ${reads[0]} \
-                        -o "${sample_id}${params.mate_seperator}1.processed.fastq" \
-                        --in2 ${reads[1]} \
-                        -O "${sample_id}${params.mate_seperator}2.processed.fastq"
+                ${params.fastp_command} -n ${params.N_bases_num} -e ${params.avg_quality} -u ${params.low_quality_per} -q ${params.low_quality_num} --low_complexity_filter --complexity_threshold ${params.complexity_threshold} -j "${sample_id}.fastp.json" --dont_eval_duplication --in1 ${reads[0]} -o "${sample_id}${params.mate_seperator}1.processed.fastq" --in2 ${reads[1]} -O "${sample_id}${params.mate_seperator}2.processed.fastq"
             """
+                        //             ${params.fastp_command} \
+                        // -n ${params.N_bases_num} \
+                        // -e ${params.avg_quality} \
+                        // -u ${params.low_quality_per} \
+                        // -q ${params.low_quality_num} \
+                        // --low_complexity_filter \
+                        // --complexity_threshold ${params.complexity_threshold}
+                        // -j "${sample_id}.fastp.json" \
+                        // --dont_eval_duplication \
+                        // --in1 ${reads[0]} \
+                        // -o "${sample_id}${params.mate_seperator}1.processed.fastq" \
+                        // --in2 ${reads[1]} \
+                        // -O "${sample_id}${params.mate_seperator}2.processed.fastq"
 }
 
 /*
@@ -592,19 +596,21 @@ workflow {
     //                         .collect()
     //                         .flatten()
     //                         .map { file -> tuple(
-    //                                              file.name.toString().tokenize(params.file_seperator).get(0),
-    //                                              file.name.toString().tokenize(params.file_seperator).get(1),
-    //                                              file)}
+    //                                                 file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
+    //                                                 file.name.toString().tokenize(params.file_seperator).get(3),
+    //                                                 file)}
+
                                                  
     Channel
-        .fromPath("/private10/Projects/Gili/HE_workdir/first_part/PE_test2/second_map/**/*")
+        .fromPath("/private10/Projects/Gili/HE_workdir/first_part/GTEX_ARTERT_umap/second_map/**/*")
         .collect()
         .flatten()
         .map { file -> tuple(
-                             file.name.toString().tokenize(params.file_seperator).get(0),
-                            file.name.toString().tokenize(params.file_seperator).get(1),
+                            file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
+                            file.name.toString().tokenize(params.file_seperator).get(3),
                             file)}
         .set{mapped_transformed_ch}
+
     // get the dirs of the original reads (output of the first map process) and extract:
     //      1) sample id
     //      2) file (directory)
