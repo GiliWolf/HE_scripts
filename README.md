@@ -16,8 +16,8 @@ https://www.nature.com/articles/ncomms5726
 ## Genome Transformation
 <p> Transforming the genome (12 transformations for each possible base combination) and 
 indexing the transformed genomes.</p>
-  * `--genome_fasta` : path to genome's fasta file to be transformed
-  * `--outdir ` : path to the output directory
+* `--genome_fasta` : path to genome's fasta file to be transformed
+* `--outdir` : path to the output directory
 
     
 ## Main algorithm
