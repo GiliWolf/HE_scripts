@@ -7,8 +7,8 @@ https://www.nature.com/articles/ncomms5726
   * Nextflow: https://github.com/nextflow-io/nextflow.git
 
 ## Main Parts:
-  * [Genome Transformation](#Genome Transformation)
-  * [Main algorithm](#Main algorithm)
+  * [Genome Transformation](#Genome-Transformation)
+  * [Main algorithm](#Main-algorithm)
   * [Detection](#Detection)
 
 
