@@ -98,15 +98,17 @@ def identify_Editing_Site(read_ref_base, read_alt_base):
     return (read_ref_base == ref_base) and (read_alt_base == alt_base)
 
 
-def identify_MM(read_ref_base, read_alt_base, quality, index, editing_sites, detected_MM_map):
+def identify_MM(read_ref_base, read_alt_base, quality, index, editing_sites, detected_MM_map, all_MM):
     #Unknown MM:
     # alt base is N
     if read_alt_base == 'N':
         detected_MM_map['Ref2N_MM'].append(index)
+        all_MM[index] = quality[index] # add to all MM quality map
         return 'X'
     # ref base is N
     if read_ref_base == 'N':
         detected_MM_map['NtoAlt_MM'].append(index)
+        all_MM[index] = quality[index] # add to all MM quality map
         return 'X'
 
     # EDITING SITE:
@@ -117,6 +119,7 @@ def identify_MM(read_ref_base, read_alt_base, quality, index, editing_sites, det
     
     # known MM
     detected_MM_map[col_names_MM_map[(read_ref_base, read_alt_base)]].append(index)
+    all_MM[index] = quality[index] # add to all MM quality map
     return 'X'
 
 def get_read_blocks(genomic_blocks):
@@ -159,8 +162,9 @@ for read in bam_file:
             # get the sequence of the read itself.
             read_sequence = read.query_alignment_sequence
             
-            # get strand orientation - f: forward, r: reverse
+            # get strand orientation - +: forward, -: reverse
             strand = '-' if read.is_reverse else '+'
+
             # initilize MM parameters:
             num_of_mm = 0 # total MM
             num_of_editing_sites = 0 # editing sites (based on the current file base combination)
@@ -191,22 +195,25 @@ for read in bam_file:
 
                 # visualization of the allignment - '*': editing site, 'X': other MM, '|': match.
                 visualize_allignment = ''
+
+                # init all MM map 
+                all_MM = {}
                 # Extract MM and editing sites:
                 for i in range(min(len(reference_sequence), len(read_sequence), len(quality))):
                     read_ref_base = reference_sequence[i] #reference base of this read
                     read_alt_base = read_sequence[i] # alternate base of this read
                     if read_ref_base != read_alt_base: # MM
                         num_of_mm += 1
-                        visualize_allignment += identify_MM(read_ref_base, read_alt_base, quality, i, editing_sites,detected_MM_map)
+                        visualize_allignment += identify_MM(read_ref_base, read_alt_base, quality, i, editing_sites,detected_MM_map, all_MM)
                         num_of_editing_sites = len(editing_sites)
                     else:
                         visualize_allignment += '|'
 
                 editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
                 # Write the parameters to the CSV file:
-                # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map'
+                # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map'
                 row = [
-                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites
+                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites, all_MM
                 ]
                 # Convert the detected_MM_map dictionary into a list of its values and append it to the row
                 row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
@@ -221,7 +228,7 @@ with open(output_path, 'w', newline='') as output_file:
         header = ['Read_ID', 'Chromosome', 'Strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction']
     else:
         # write the header
-        header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based','Read_Relative_Splicing_Blocks_0based', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map']
+        header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based','Read_Relative_Splicing_Blocks_0based', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
         header.extend(mm_col_names)
         
     csv_writer.writerow(header)

@@ -92,45 +92,46 @@ process MERGE_GRID_OUTPUT{
         tuple val(base_comb), path(json_files)
 
     output:
-        //path('*')
+        path('*')
     script:
     merged_output_file = "${base_comb}_merged.json"
+
     """
-    echo ${base_comb}
-    echo ("${json_files}")
-    echo ${merged_output_file}
+    # Check for the -remove flag
+    REMOVE=false
+    if [ ${params.remove_jsons} -eq 1 ]; then
+        REMOVE=true
+    fi
+
+    # MODIFY FASTQS FILES INTO A BASH LIST:  
+        # transform fastq file's names into string
+        jsons_string="${json_files}"
+        # Split the string into a list
+        IFS=' ' read -ra json_list <<< "\$jsons_string"
+
+    # Define the output file
+    OUTPUT_FILE="${merged_output_file}"
+
+    # Create or empty the output file
+    > "\$OUTPUT_FILE"
+
+    # Merge the JSON files
+    for FILE in "\${json_list[@]}"; do
+        cat "\$FILE" >> "\$OUTPUT_FILE"
+    done
+
+
+    # Remove individual JSON files if the -remove flag is set
+    if [ "\$REMOVE" = true ]; then
+        for FILE in "\${json_list[@]}"; do
+            rm "\$FILE"
+        done
+    fi
+
     """
-    //"""
-    // # Check for the -remove flag
-    // REMOVE=false
-    // if [ ${params.remove_jsons} -eq 1 ]; then
-    //     REMOVE=true
-    // fi
-
-    // # Define the output file
-    // OUTPUT_FILE="${merged_output_file}"
-
-    // # Remove the output file from the list if it exists
-    // INPUT_FILES=("${json_files}")"
-
-    // # Create or empty the output file
-    // > "\$OUTPUT_FILE"
-
-    // # Merge the JSON files
-    // for FILE in "\${INPUT_FILES[@]}"; do
-    //     cat "\$FILE" >> "\$OUTPUT_FILE"
-    // done
-
-
-    // # Remove individual JSON files if the -remove flag is set
-    // if [ "\$REMOVE" = true ]; then
-    //     for FILE in "\${INPUT_FILES[@]}"; do
-    //         rm "\$FILE"
-    //     done
-    // fi
-
-    // """
 }
+
+
 workflow independent{ 
     def base_comb="${params.ref_base}2${params.alt_base}"
 
@@ -177,8 +178,8 @@ workflow {
     
     after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
 
-    gs_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+    grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
 
-    MERGE_GRID_OUTPUT(gs_ch)
+    MERGE_GRID_OUTPUT(grid_search_ch)
 
 }

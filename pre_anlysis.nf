@@ -181,7 +181,7 @@ process FIRST_STAR_MAP{
 
     output:
         path('*Unmapped*')
-        // stdout
+        path('*bam')
 
     script:
     // number of samples- for PE: (number of fastq files / 2), for SE: number of files
@@ -402,7 +402,7 @@ process SECOND_STAR_MAP{
 
 
             # mapping each sample in the background
-            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment_second_map} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outSAMunmapped Within KeepPairs --outFileNamePrefix "./\${sample_id}${params.file_seperator}${base_comb}${params.file_seperator}" &> run_\${sample_id} &
+            ${params.STAR_command} --readFilesCommand ${params.read_files_command} --readFilesIn \${mate1} \${mate2} --genomeDir ${trans_index_dir} --outSAMattributes ${params.SAM_attr} --outSAMtype ${params.outSAMtype} --alignSJoverhangMin ${params.min_SJ_overhang} --alignIntronMax ${params.max_intron_size} --alignMatesGapMax ${params.max_mates_gap} --outFilterMismatchNoverLmax ${params.max_mismatches_ratio_to_ref} --outFilterMismatchNoverReadLmax ${params.max_mismatche_ratio_to_read} --outFilterMatchNminOverLread  ${params.norm_num_of_matches} --outFilterMultimapNmax ${params.max_num_of_allignment_second_map} --genomeLoad ${params.second_map_genome_load_set} --runThreadN ${params.num_of_threads} --runDirPerm ${params.output_files_permissions} --outSAMunmapped KeepPairs --outFileNamePrefix "./\${sample_id}${params.file_seperator}${base_comb}${params.file_seperator}" &> run_\${sample_id} &
 
         done
 
@@ -528,6 +528,7 @@ workflow {
          d) group by sample_id (for PE samples)
     */
     unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
+                        .out[0]
                         .flatten()
                         .map { file ->
                                 def file_sample_id  = file.name.toString().tokenize(".").get(0)
