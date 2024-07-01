@@ -1,5 +1,5 @@
 ### RNA Hyper Editing Detection tool
-Hyper-edited RNA detection tool based on the algorithm presentes in:
+<p>Hyper-edited RNA detection tool based on the algorithm presentes in:
 A genome-wide map of hyper-edited RNA reveals numerous new sites, Hagit T. Porath, Shai Carmi & Erez Y. Levanon, 2014
 https://www.nature.com/articles/ncomms5726
 
@@ -8,8 +8,10 @@ https://www.nature.com/articles/ncomms5726
 
 ## Main Parts:
   * [Genome Transformation](#Genome Transformation)
-  * [Main algorithm](Main algorithm)
-  * [Detection](Detection)
+  * [Main algorithm](#Main algorithm)
+  * [Detection](#Detection)
+
+
 ## Genome Transformation
 
 ## Main algorithm
