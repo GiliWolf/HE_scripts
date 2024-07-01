@@ -2,15 +2,19 @@
 <p> Hyper-edited RNA detection tool based on the algorithm presentes in:
 A genome-wide map of hyper-edited RNA reveals numerous new sites, Hagit T. Porath, Shai Carmi & Erez Y. Levanon, 2014, [https://www.nature.com/articles/ncomms5726](https://www.nature.com/articles/ncomms5726)
 </p>
+___________________________________
 
 ## Dependecies:
   * Nextflow: https://github.com/nextflow-io/nextflow.git
+
+___________________________________
 
 ## Main Parts:
   * [Genome Transformation](#Genome-Transformation)
   * [Main algorithm](#Main-algorithm)
   * [Detection](#Detection)
 
+___________________________________
 
 ## Genome Transformation
 <p> Transforming the genome (12 transformations for each possible base combination) and 
@@ -19,9 +23,11 @@ indexing the transformed genomes.</p>
  - `-genome_fasta` : path to genome's fasta file to be transformed
 - `-outdir` : path to the output directory
 
+___________________________________
     
 ## Main algorithm
 <p> Similar to the original pipeline, the process involves aligning the samples to the original genome, then transforming the unmapped reads and mapping them again to the transformed genome. Finally, the second mapped reads are retransformed to their original sequence.</p>
+
 ### Input File Parameters
 
 - `--pair_end`
@@ -131,12 +137,8 @@ indexing the transformed genomes.</p>
 
 ### Second Map Parameters
 
-#### General
-
 - `--transformed_indexes`
   - Path to the directory of the transformed genome indexes from HE part 1 (e.g., "/generic_transform/hg38transform/genome_indexing/*")
-
-#### STAR Parameters
 
 - `--STAR_MAX_PARALLEL`
   - Number of files to be mapped in parallel (default: 6)
@@ -152,7 +154,7 @@ indexing the transformed genomes.</p>
 - `--filter_sam_files`
   - STAR output files to be output (default: '*Aligned.out*')
 
-
+___________________________________
 
 ## Detection
 1.  Analyze and detect the editing events from the overall general mismatches events.
