@@ -41,7 +41,7 @@ process FILTER {
         tuple val(base_comb), val(sample_id), path('*')
         // stdout
     script:
-        filtered_output_path = "${sample_id}${params.file_seperator}filtered.csv"
+        filtered_output_path = "${sample_id}${params.file_seperator}passed.csv"
         analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
         summary_output_path = "${sample_id}${params.file_seperator}summary.json"
     """
@@ -75,13 +75,61 @@ process GRID_SEARCH_FILTER {
         path(grid_search_python_script)
 
     output:
-        path('*')
+        tuple val(base_comb), path('*.json')
         // stdout
     script:
     """
     ${params.python_command} ${grid_search_python_script} -i ${file} -s ${filter_python_script} -bc ${base_comb} -id ${sample_id} -D "./" -es ${params.es_start} ${params.es_end} ${params.es_step} -ef ${params.ef_start} ${params.ef_end} ${params.ef_step} -ps ${params.ps_start} ${params.ps_end} ${params.ps_step} -es2l ${params.es2l_start} ${params.es2l_end} ${params.es2l_step} -cl2l ${params.cl2l_start} ${params.cl2l_end} ${params.cl2l_step}
 
     """
+}
+
+process MERGE_GRID_OUTPUT{
+        tag "Merge jsons: ${base_comb}"
+        publishDir "${params.grid_search_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
+
+    input:
+        tuple val(base_comb), path(json_files)
+
+    output:
+        //path('*')
+    script:
+    merged_output_file = "${base_comb}_merged.json"
+    """
+    echo ${base_comb}
+    echo ("${json_files}")
+    echo ${merged_output_file}
+    """
+    //"""
+    // # Check for the -remove flag
+    // REMOVE=false
+    // if [ ${params.remove_jsons} -eq 1 ]; then
+    //     REMOVE=true
+    // fi
+
+    // # Define the output file
+    // OUTPUT_FILE="${merged_output_file}"
+
+    // # Remove the output file from the list if it exists
+    // INPUT_FILES=("${json_files}")"
+
+    // # Create or empty the output file
+    // > "\$OUTPUT_FILE"
+
+    // # Merge the JSON files
+    // for FILE in "\${INPUT_FILES[@]}"; do
+    //     cat "\$FILE" >> "\$OUTPUT_FILE"
+    // done
+
+
+    // # Remove individual JSON files if the -remove flag is set
+    // if [ "\$REMOVE" = true ]; then
+    //     for FILE in "\${INPUT_FILES[@]}"; do
+    //         rm "\$FILE"
+    //     done
+    // fi
+
+    // """
 }
 workflow independent{ 
     def base_comb="${params.ref_base}2${params.alt_base}"
@@ -128,6 +176,9 @@ workflow {
     detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
     
     after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
-    // // after_filter_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+
+    gs_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+
+    MERGE_GRID_OUTPUT(gs_ch)
 
 }

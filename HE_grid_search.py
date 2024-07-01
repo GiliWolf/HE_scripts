@@ -44,7 +44,6 @@ OPTIONAL ARGUMENTS:
 """
 import subprocess
 import itertools
-import pandas as pd
 import os
 import json
 import sys
@@ -133,8 +132,12 @@ def run_script(params):
     command.extend(['-t', output_files_type])
     command.extend(command_parameters)
 
-    # add json file to list
-    json_files.append(json_output_path)
+    # # add json file to list
+    # json_files.append(json_output_path)
+
+    # # create json file 
+    # with open(json_output_path, 'w') as f:
+    #     json.dump(merged_data, f, indent=4)
 
     try:
         # run process
@@ -161,23 +164,23 @@ def run_script(params):
 with ThreadPoolExecutor(max_workers = args.max_threads) as executor:
     executor.map(run_script, param_combinations)
 
-# after all the runs - combine all json files into ine file 
-def merge_json_files(json_files):
-    merged_data = []
-    for json_file in json_files:
-        # striped_json = str(json_file).rstrip('./')
-        with open(json_file, 'r') as f:
-            merged_data.extend(json.load(f))
-    return merged_data
+# # after all the runs - combine all json files into ine file 
+# def merge_json_files(json_files):
+#     merged_data = []
+#     for json_file in json_files:
+#         # striped_json = str(json_file).rstrip('./')
+#         with open(json_file, 'r') as f:
+#             merged_data.extend(json.load(f))
+#     return merged_data
 
-# with open(output_merged_file, "w") as outfile:
-#    outfile.write('{}'.format('\n'.join([open(f, "r").read() for f in json_files])))
-merged_data = merge_json_files(json_files)
-with open(output_merged_file, 'w') as f:
-    json.dump(merged_data, f, indent=4)
+# # with open(output_merged_file, "w") as outfile:
+# #    outfile.write('{}'.format('\n'.join([open(f, "r").read() for f in json_files])))
+# merged_data = merge_json_files(json_files)
+# with open(output_merged_file, 'w') as f:
+#     json.dump(merged_data, f, indent=4)
 
-#delete all files:
-for file in json_files:
-    os.remove(file)
+# #delete all files:
+# for file in json_files:
+#     os.remove(file)
 
 

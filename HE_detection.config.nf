@@ -34,7 +34,7 @@ params {
         
 
     // Output dirs:
-        outdir = "detection/GTEX_ARTERT_umap_changed_detect"
+        outdir = "detection/GTEX_ARTERT_umap_GS_1st_try"
         detect_output_dir = "${params.outdir}/detected_clusters"
         filter_output_dir = "${params.outdir}/filtered_clusters"
         PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
@@ -76,7 +76,8 @@ params {
     cl2l_end = 0.02
     cl2l_step = 0.01
 
-
+    // merge json
+    remove_jsons = 1
 
 
 }
@@ -87,6 +88,9 @@ process {
         container = 'quay.io/biocontainers/pysam:0.22.0--py38h15b938a_0'
     }
     withName: FILTER {
+        container = 'quay.io/jupyter/scipy-notebook'
+    }
+    withName: GRID_SEARCH_FILTER {
         container = 'quay.io/jupyter/scipy-notebook'
     }
 }
