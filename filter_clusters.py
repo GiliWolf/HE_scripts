@@ -107,7 +107,7 @@ sample_id = args.sample_id
 out_passed = args.output_types == 'all' or args.output_types == 'passed'
 out_analysis = args.output_types == 'all' or args.output_types == 'analysis'
 out_json = args.output_types == 'all' or args.output_types == 'summary'
-out_json = True
+
 # script parameters 
 motif_location = ['upstream', 'downstream']
 
@@ -163,9 +163,8 @@ def create_json(passed_df, condition_df):
         parameters_values[column_name] = param_value
     json_data["Parameters' Values:"] = parameters_values
 
-    # Create dictionary with the sum of reads which passed each condition
-    each_condition = condition_df.sum().astype(int).to_dict()
-    json_data["number of passed reads for each condition:"] = each_condition
+    # Create dictionary with the sum of reads which *did not* pass each condition
+    json_data["Filtering Results (did not pass the condition):"] = (condition_df == False).sum().astype(int).to_dict()
 
     return json_data
 
@@ -202,17 +201,19 @@ def es_statistics(editing_sites_map):
     avg_es_distance = avg_lambda_func(es_positions)
     return phred_score_avg, avg_es_distance
 
-# for each ES checks if the phred score is bigger then the threshold
-# if so  - consider it as passed ES 
-# returns number of passed ES ad the position-phred score map of the passed ES
-def filter_ES(editing_sites_map, score_threshold):
-    num_of_passed_ES = 0
-    passed_ES_map = {}
-    for pos, score in editing_sites_map.items():
-        if score >= score_threshold:
-            num_of_passed_ES += 1
-            passed_ES_map[pos] = score
-    return num_of_passed_ES, passed_ES_map
+# for each site checks if the phred score is bigger then the threshold
+# if so  - consider it as passed site 
+# returns number of passed sites and the position-phred score map of the passed sites
+def filter_sites(sites_map, score_threshold):
+    # num_of_passed_ES = 0
+    # passed_ES_map = {}
+    # for pos, score in editing_sites_map.items():
+    #     if score >= score_threshold:
+    #         num_of_passed_ES += 1
+    #         passed_ES_map[pos] = score
+    # return num_of_passed_ES, passed_ES_map
+    passed_sites_map = {pos: score for pos, score in sites_map.items() if score >= score_threshold}
+    return len(passed_sites_map), passed_sites_map
 
 # itearte over each row in the csv file
 for read in clusters_df.itertuples():
@@ -221,16 +222,18 @@ for read in clusters_df.itertuples():
     passed_all_conditions = True
     edited = False
     
-    # parse the EditingSites_to_PhredScore_Map (presented as string)
+    # parse the EditingSites_to_PhredScore_Map and  MM_sites_map (presented as string)
     editing_sites_map = ast.literal_eval(read.EditingSites_to_PhredScore_Map)
+    MM_sites_map = ast.literal_eval(read.MM_to_PhredScore_Map)
     total_num_of_ES = read.Number_of_Editing_Sites
 
     # Check conditions
 
-    # filter ES - count numer of ES bigger or equal to threshold. 
+    # filter ES and MM - count number of sites which qualities are bigger or equal to threshold. 
     # if the count is less than the minimum number of ES, the read did not passed this condition.
     # !!!!!!!!!!!!!!! ALL OTHER CONDITIONS WILL BE CHECKED ONLY ON THE PASSED ES !!!!!!!!!!!!!!!!!!
-    num_of_passed_ES, passed_ES_map = filter_ES(editing_sites_map, args.min_phred_score)
+    num_of_passed_ES, passed_ES_map = filter_sites(editing_sites_map, args.min_phred_score)
+    num_of_passed_MM, passed_MM_map = filter_sites(MM_sites_map, args.min_phred_score)
     min_phred_score_passed = True if num_of_passed_ES >= args.min_editing_sites else False
 
     # if no passed editing sites detected - continue to the next read
@@ -242,13 +245,16 @@ for read in clusters_df.itertuples():
 
     # get read is mate1/mate2:
     sam_flag = read.flag
-    mate = 2 if sam_flag & 128 else 1
+    mate = 2 if (sam_flag & 128) else 1
     
     # cluster_len = last position of editing site list minus first position of editing sites list
     cluster_len = max(passed_ES_map.keys()) - min(passed_ES_map.keys())
 
+    # editing fraction
+    editing_fraction = 0 if num_of_passed_MM == 0 else num_of_passed_ES / num_of_passed_MM
+
     min_editing_sites_passed = check_Condition(num_of_passed_ES, args.min_editing_sites)
-    min_editing_fraction_passed = check_Condition(read.Editing_to_Total_MM_Fraction, args.min_editing_fraction)
+    min_editing_fraction_passed = check_Condition(editing_fraction, args.min_editing_fraction)
     min_es_length_ratio_passed = check_Condition(num_of_passed_ES / read.Alignment_length, args.min_es_length_ratio)
     min_cluster_length_ratio_passed = check_Condition(cluster_len / read.Alignment_length, args.min_cluster_length_ratio)
 
@@ -263,7 +269,7 @@ for read in clusters_df.itertuples():
     if passed_all_conditions and out_passed:
         avg_phred_score, avg_es_distance= es_statistics(passed_ES_map)
         motifs_count_data = motifs_count(read.Read_Sequence, passed_ES_map)
-        es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
+        es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'number_of_passed_ES': num_of_passed_MM,'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
         all_data = {"Read_ID": read[0]}
         all_data.update({"mate": mate})
         all_data.update(es_statistics_data)
@@ -277,7 +283,7 @@ for read in clusters_df.itertuples():
 # WRITE OUTPUT
 #CREATE DATA FRAMES
 if(len(passed_reads_data) == 0):
-    f = open(f'{sample_id}_failed.txt', "x")
+    f = open(f'{sample_id}_no_passed_reads.txt', "x")
     sys.exit()
 passed_df = pd.DataFrame(passed_reads_data)
 

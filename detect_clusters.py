@@ -170,6 +170,7 @@ for read in bam_file:
             num_of_editing_sites = 0 # editing sites (based on the current file base combination)
             editing_sites = {} # map : (position: quality)
 
+            
             if output_columns == "basic":
                 # Extract number of MM and editing sites:
                 for i in range(min(len(reference_sequence), len(read_sequence), len(quality))):
@@ -179,11 +180,11 @@ for read in bam_file:
                         num_of_mm += 1
                         if identify_Editing_Site(read_ref_base, read_alt_base):
                             num_of_editing_sites+=1
-                editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
+                editing_fraction = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
 
                 row = [
                     read.query_name, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
-                    num_of_mm, num_of_editing_sites, editing_fracture
+                    num_of_mm, num_of_editing_sites, editing_fraction
                 ]
             else:
                 # ADDITIONAL
@@ -209,11 +210,11 @@ for read in bam_file:
                     else:
                         visualize_allignment += '|'
 
-                editing_fracture = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
+                editing_fraction = 0 if num_of_mm == 0 else num_of_editing_sites / num_of_mm
                 # Write the parameters to the CSV file:
                 # 'Read_ID', 'Chromosome', 'Position','Alignment_length','Visualize_Allignment','Read_Sequence', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks','Read_Relative_Splicing_Blocks', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map'
                 row = [
-                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fracture, editing_sites, all_MM
+                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_mm, num_of_editing_sites, editing_fraction, editing_sites, all_MM
                 ]
                 # Convert the detected_MM_map dictionary into a list of its values and append it to the row
                 row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
@@ -228,7 +229,7 @@ with open(output_path, 'w', newline='') as output_file:
         header = ['Read_ID', 'Chromosome', 'Strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction']
     else:
         # write the header
-        header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based','Read_Relative_Splicing_Blocks_0based', 'Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
+        header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based','Alignment_length','Read_Sequence', 'Visualize_Allignment','Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based','Read_Relative_Splicing_Blocks_0based', 'Number_of_total_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
         header.extend(mm_col_names)
         
     csv_writer.writerow(header)
