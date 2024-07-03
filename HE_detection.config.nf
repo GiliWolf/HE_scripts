@@ -21,7 +21,7 @@ params {
         PE_HE_reads = "${params.input_dir}/re-transform/**/*${params.reads_suffix}"
         pair_end=0
         fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
-        detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/detect_clusters.py"
+        detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/parallel_detection.py"
         filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
         PE_filter_python_script = ""
         grid_serch_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/HE_grid_search.py"
@@ -34,7 +34,7 @@ params {
         
 
     // Output dirs:
-        outdir = "detection/GTEX_ARTERT_umap_GS_1st_try"
+        outdir = "detection/GTEX_ARTERT_umap_parallel"
         detect_output_dir = "${params.outdir}/detected_clusters"
         filter_output_dir = "${params.outdir}/filtered_clusters"
         PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
@@ -42,6 +42,8 @@ params {
 
     // detect script argumnets - 
         columns_select = 'all'
+        max_detection_threads = 5
+        batch_size = 50
     
     // Filter PE
         unmapped_fastq = "${params.input_dir}/first_map"

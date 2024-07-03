@@ -96,20 +96,23 @@ def getOriginal(read, seq_dict, qualities):
 
 
 # Open the SAM file for reading
-with pysam.AlignmentFile(input_sam_file, "rb") as samfile:
-    # Open a new SAM file for writing
-    with pysam.AlignmentFile(output_sam_file, "wh", header=samfile.header) as output_sam:
-        # for each read in the sam file
-        for read in samfile:
-            # bug in pysam- doesn't pass the read qualities when passed to a function
-            # solution: pass the quailities seperatly and restore them in the getOriginal function
-            if pair_end:
-                # get original read of mate1
-                if read.is_read1: 
+try:
+    with pysam.AlignmentFile(input_sam_file, "rb") as samfile:
+        # Open a new SAM file for writing
+        with pysam.AlignmentFile(output_sam_file, "wh", header=samfile.header) as output_sam:
+            # for each read in the sam file
+            for read in samfile:
+                # bug in pysam- doesn't pass the read qualities when passed to a function
+                # solution: pass the quailities seperatly and restore them in the getOriginal function
+                if pair_end:
+                    # get original read of mate1
+                    if read.is_read1: 
+                        getOriginal(read, mate1_seqs, mate1_qualities)
+                    # get original read of mate2 (if pair_end == 1)
+                    if read.is_read2: 
+                        getOriginal(read, mate2_seqs, mate2_qualities)
+                else:
                     getOriginal(read, mate1_seqs, mate1_qualities)
-                # get original read of mate2 (if pair_end == 1)
-                if read.is_read2: 
-                    getOriginal(read, mate2_seqs, mate2_qualities)
-            else:
-                getOriginal(read, mate1_seqs, mate1_qualities)
-
+except:
+    print("error opening files")
+    exit()

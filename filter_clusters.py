@@ -269,7 +269,7 @@ for read in clusters_df.itertuples():
     if passed_all_conditions and out_passed:
         avg_phred_score, avg_es_distance= es_statistics(passed_ES_map)
         motifs_count_data = motifs_count(read.Read_Sequence, passed_ES_map)
-        es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'number_of_passed_ES': num_of_passed_MM,'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
+        es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'number_of_passed_MM': num_of_passed_MM,'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
         all_data = {"Read_ID": read[0]}
         all_data.update({"mate": mate})
         all_data.update(es_statistics_data)

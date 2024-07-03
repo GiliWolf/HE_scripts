@@ -21,9 +21,8 @@ process DETECT {
         ref_base = comb_bases_list[0]
         alt_base = comb_bases_list[1]
 
-        //detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_BASE -ab ALT_BASE [-c {all,basic}]
         """
-        ${params.python_command} ${python_script} -i ${file} -g ${genome} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -c ${params.columns_select}
+        ${params.python_command} ${python_script} -i ${file} -g ${genome} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -t ${params.max_detection_threads} -b ${params.batch_size} -c ${params.columns_select}
 
         
         """ 
@@ -178,8 +177,8 @@ workflow {
     
     after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
 
-    grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+    // grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
 
-    MERGE_GRID_OUTPUT(grid_search_ch)
+    // MERGE_GRID_OUTPUT(grid_search_ch)
 
 }

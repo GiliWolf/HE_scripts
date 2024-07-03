@@ -180,7 +180,7 @@ process FIRST_STAR_MAP{
         path(genome_index)
 
     output:
-        path('*Unmapped*')
+        path('*Unmapped*'), emit: fastqs
         path('*bam')
 
     script:
@@ -435,7 +435,7 @@ process RETRANSFORM {
         path(python_script)
 
     output:
-        path('*')
+        path('*'), optional: true
 
     // python re-transform.py -s <sam_file> -o <output_path> -i <original_fastq_path> [-I <original_fastq_path_2>] <pair_end[0/1]>
     script:
@@ -527,14 +527,23 @@ workflow {
          c) map to get sample_id with file
          d) group by sample_id (for PE samples)
     */
-    unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
-                        .out[0]
+    FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
+    FIRST_STAR_MAP.out.fastqs
                         .flatten()
                         .map { file ->
                                 def file_sample_id  = file.name.toString().tokenize(".").get(0)
                                 return tuple(file_sample_id,file)
                         }
                         .groupTuple(by:0)
+                        .set {unmapped_reads_ch}
+    // unmapped_reads_ch = FIRST_STAR_MAP(FASTP.out[0].collect(), params.genome_index_dir)
+    //                     .out[0]
+    //                     .flatten()
+    //                     .map { file ->
+    //                             def file_sample_id  = file.name.toString().tokenize(".").get(0)
+    //                             return tuple(file_sample_id,file)
+    //                     }
+    //                     .groupTuple(by:0)
                
     // all the bases combinations (MM) the reads to be transformed accordinly
     Channel
@@ -601,23 +610,23 @@ workflow {
             2) base_comb (tokenize with file seperator and get the second to the last part (before "_Aligned.out.bam")
             3) sam file
     */
-
-    mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
-                                .collect()
-                                .flatten()
-                                .map { file -> tuple(
-                                file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
-                                file.name.toString().tokenize(params.file_seperator)[-2],
-                                file)}                                    
-    // Channel
-    //     .fromPath("/private10/Projects/Gili/HE_workdir/first_part/GTEX_ARTERT_2/second_map/**/*")
-    //     .collect()
-    //     .flatten()
-    //     .map { file -> tuple(
-    //                         file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
-    //                         file.name.toString().tokenize(params.file_seperator)[-2],
-    //                         file)}
-    //     .set{mapped_transformed_ch}
+    SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
+    // // mapped_transformed_ch = SECOND_STAR_MAP(reads_channel_mount, index_channel_mount)
+    // //                             .collect()
+    // //                             .flatten()
+    // //                             .map { file -> tuple(
+    // //                             file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
+    // //                             file.name.toString().tokenize(params.file_seperator)[-2],
+    // //                             file)}                                    
+    Channel
+        .fromPath("/private10/Projects/Gili/HE_workdir/first_part/GTEX_ARTERT_small_SE/second_map/**/*")
+        .collect()
+        .flatten()
+        .map { file -> tuple(
+                            file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
+                            file.name.toString().tokenize(params.file_seperator)[-2],
+                            file)}
+        .set{mapped_transformed_ch}
 
     /*
         get the dirs of the original reads (output of the first map process) and extract:
