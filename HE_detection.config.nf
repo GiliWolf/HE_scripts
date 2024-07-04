@@ -22,7 +22,7 @@ params {
         pair_end=0
         fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
         detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/parallel_detection.py"
-        filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
+        filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/parallel_filter.py"
         PE_filter_python_script = ""
         grid_serch_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/HE_grid_search.py"
         file_seperator="_"
@@ -34,17 +34,21 @@ params {
         
 
     // Output dirs:
-        outdir = "detection/GTEX_ARTERT_umap_parallel"
+        outdir = "detection/GTEX_ARTERT_umap_parallel_filter"
         detect_output_dir = "${params.outdir}/detected_clusters"
         filter_output_dir = "${params.outdir}/filtered_clusters"
         PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
         grid_search_output_dir  = "${params.outdir}/grid_search"
 
     // detect script argumnets - 
-        columns_select = 'all'
+        detection_columns_select = 'all'
         max_detection_threads = 5
-        batch_size = 50
+        detection_batch_size = 50
     
+    // FILTER
+        max_filter_threads = 5
+        filter_batch_size = 50
+        filter_output_types = "all"
     // Filter PE
         unmapped_fastq = "${params.input_dir}/first_map"
         unmapped_star_file_format_mate1 = ".Unmapped.out.mate1"
