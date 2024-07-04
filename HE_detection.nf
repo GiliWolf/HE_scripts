@@ -22,7 +22,7 @@ process DETECT {
         alt_base = comb_bases_list[1]
 
         """
-        ${params.python_command} ${python_script} -i ${file} -g ${genome} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -t ${params.max_detection_threads} -b ${params.batch_size} -c ${params.columns_select}
+        ${params.python_command} ${python_script} -i ${file} -g ${genome} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -t ${params.max_detection_threads} -b ${params.detection_batch_size} -c ${params.detection_columns_select}
 
         
         """ 
@@ -44,7 +44,7 @@ process FILTER {
         analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
         summary_output_path = "${sample_id}${params.file_seperator}summary.json"
     """
-    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t all
+    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -b ${params.filter_batch_size} -ot ${params.filter_output_types}
     """
 }
 

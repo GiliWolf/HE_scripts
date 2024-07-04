@@ -1,3 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import pandas as pd
+import ast
+import sys
+import argparse
+from collections import Counter
+import json
+
 """
 Author: Gili Wolf
 Date: 06-03-2024
@@ -20,7 +29,7 @@ the script output 3 files (if -t == 'all'):
 Usage:
     filter_clusters.py -i <SAMPLE_CLUSTERS_CSV> \
                        [-o <passed_CSV_PATH> -O <CONDITION_ANALYSIS_PATH> -id <SAMPLE_ID> \
-                        -j <JSON_PATH> -t {all,passed,analysis,summary}] \
+                        -j <JSON_PATH> -t {all,passed,analysis,summary} -t <MAX_THREADS> -b <BATCH_SIZE>] \
                        [Parameters Options..]
 
 Arguments: 
@@ -34,7 +43,9 @@ output files:
     -o --passed_output              path to the read's passed output.
     -O --detailed_condition_output  path to the read's csv file with all the conditions anaylsis output
     -j --json_summary               path to the sample's summary json file
-    -ot --output_types               choose the type of output: 'all', 'passed', 'analysis', 'summary'
+    -ot --output_types              choose the type of output: 'all', 'passed', 'analysis', 'summary'
+    -t --threads                    Number of threads to parallel processing.(default: 5)
+    -b --batch                      Batch size (number of reads) to be processed by each thread. (default: 50)
 filter parameters:
   -es --min_editing_sites           MIN_EDITING_SITES
                                     minimum number of editing sites.
@@ -51,19 +62,14 @@ filter parameters:
   -cl2l --min_cluster_length_ratio MIN_CLUSTER_LENGTH_RATIO
                                     minimum ratio of: cluster's length to read's length
 """
-
-import pandas as pd
-import ast
-import sys
-import argparse
-from collections import Counter
-import json
-
-
 #Controling Arguments:
 parser = argparse.ArgumentParser(description="This script is designed to filter HE read based on pre-defined conditions.")
 # REQUIRED: Input & Output Paths
 parser.add_argument("-i", "--input", dest ="sample_clusters_csv", type=str, required=True, help="path to the read's detected cluster (output of detect_clusters.py).")
+
+# OPTIONAL: Controlling parallel processing
+parser.add_argument("-t", "--threads", type=int, required=False, default=5, help="Number of threads to parallel processing.(default: 5)")
+parser.add_argument("-b", "--batch", type=int, required=False, default=50, help="Batch size (number of reads) to be processed by each thread. (default: 50)")
 
 # OPTIONAL: Conditions parameters
 # min_editing_sites, default 0 
@@ -84,21 +90,16 @@ parser.add_argument("-O", "--detailed_condition_output", dest ="condition_analys
 parser.add_argument("-j", "--json_summary", dest="json_path", type=str, required=False,default = "summary.json", help="path to the sample's summary json file.")
 parser.add_argument("-ot", "--output_types", dest="output_types", choices=["all", "passed", "analysis", "summary"], default="all", help="choose the type of output: 'all', 'passed', 'analysis', 'summary'")
 
-
-args = parser.parse_args()
-
 # get arguments
+args = parser.parse_args()
 sample_clusters_csv = str(args.sample_clusters_csv).strip()
 passed_csv_path = str(args.passed_csv_path).strip()
 condition_analysis_path = str(args.condition_analysis_path).strip()
 json_summary_path = str(args.json_path).strip()
 
-# Initialize lists to store rows
-passed_reads_data = []
-condition_analysis_rows = []
-
-# read data from the detected clusters file
-clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
+# parallel processing controling
+max_threads = args.threads
+batch_size = args.batch
 
 # output types -
 sample_id = args.sample_id
@@ -106,7 +107,10 @@ out_passed = args.output_types == 'all' or args.output_types == 'passed'
 out_analysis = args.output_types == 'all' or args.output_types == 'analysis'
 out_json = args.output_types == 'all' or args.output_types == 'summary'
 
-# script parameters 
+# INIT SCRIPT PARAMETERS
+# Initialize lists to store rows
+passed_reads_data = []
+condition_analysis_rows = []
 motif_location = ['upstream', 'downstream']
 
 # True if consition passed, False if did not
@@ -206,91 +210,118 @@ def filter_sites(sites_map, score_threshold):
     passed_sites_map = {pos: score for pos, score in sites_map.items() if score >= score_threshold}
     return len(passed_sites_map), passed_sites_map
 
-# itearte over each row in the csv file
-for read in clusters_df.itertuples():
+def process_reads(clusters_df):
+    # itearte over each row in the csv file
+    for read in clusters_df.itertuples():
+        try:
+            # Initialize flag to track if all conditions passed
+            passed_all_conditions = True
+            edited = False
+            
+            # parse the EditingSites_to_PhredScore_Map and  MM_sites_map (presented as string)
+            editing_sites_map = ast.literal_eval(read.EditingSites_to_PhredScore_Map)
+            MM_sites_map = ast.literal_eval(read.MM_to_PhredScore_Map)
+            total_num_of_ES = read.Number_of_Editing_Sites
 
-    # Initialize flag to track if all conditions passed
-    passed_all_conditions = True
-    edited = False
+            # Check conditions
+
+            # filter ES and MM - count number of sites which qualities are bigger or equal to threshold. 
+            # if the count is less than the minimum number of ES, the read did not passed this condition.
+            # !!!!!!!!!!!!!!! ALL OTHER CONDITIONS WILL BE CHECKED ONLY ON THE PASSED ES & MM !!!!!!!!!!!!!!!!!!
+            num_of_passed_ES, passed_ES_map = filter_sites(editing_sites_map, args.min_phred_score)
+            num_of_passed_MM, passed_MM_map = filter_sites(MM_sites_map, args.min_phred_score)
+            min_phred_score_passed = True if num_of_passed_ES >= args.min_editing_sites else False
+
+            # if no passed editing sites detected - continue to the next read
+            # (keep column 'Edited' as False)
+            if num_of_passed_ES == 0:
+                continue
+            # else - read was edited
+            edited = True
+
+            # get read is mate1/mate2:
+            sam_flag = read.flag
+            mate = 2 if (sam_flag & 128) else 1
+            
+            # cluster_len = last position of editing site list minus first position of editing sites list
+            cluster_len = max(passed_ES_map.keys()) - min(passed_ES_map.keys())
+
+            # editing fraction
+            editing_fraction = 0 if num_of_passed_MM == 0 else num_of_passed_ES / num_of_passed_MM
+
+            min_editing_sites_passed = check_Condition(num_of_passed_ES, args.min_editing_sites)
+            min_editing_fraction_passed = check_Condition(editing_fraction, args.min_editing_fraction)
+            min_es_length_ratio_passed = check_Condition(num_of_passed_ES / read.Alignment_length, args.min_es_length_ratio)
+            min_cluster_length_ratio_passed = check_Condition(cluster_len / read.Alignment_length, args.min_cluster_length_ratio)
+
+            #list of conditions -
+            conditions_list = [min_editing_sites_passed, min_editing_fraction_passed, min_phred_score_passed, min_es_length_ratio_passed, min_cluster_length_ratio_passed]
+
+            # Update passed_all_conditions flag
+            passed_all_conditions = all(conditions_list)
+
+            # if read passed all parameteres add a row to the passed_statisctics
+            if passed_all_conditions and out_passed:
+                avg_phred_score, avg_es_distance= es_statistics(passed_ES_map)
+                motifs_count_data = motifs_count(read.Read_Sequence, passed_ES_map)
+                es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'number_of_passed_MM': num_of_passed_MM,'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
+                all_data = {"Read_ID": read[0]}
+                all_data.update({"mate": mate})
+                all_data.update(es_statistics_data)
+                all_data.update(motifs_count_data)
+                passed_reads_data.append(all_data)
+            # append details to the condition_analysis file
+            if out_analysis:
+                condition_analysis_rows.append([read[0]] + [passed_all_conditions] + [edited] + conditions_list)
+
+        except Exception as e:
+            print(f"Error processing read {read[0]}: {e}")
+            continue
+
+
+
+def main():
+    # read data from the detected clusters file
+    clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
     
-    # parse the EditingSites_to_PhredScore_Map and  MM_sites_map (presented as string)
-    editing_sites_map = ast.literal_eval(read.EditingSites_to_PhredScore_Map)
-    MM_sites_map = ast.literal_eval(read.MM_to_PhredScore_Map)
-    total_num_of_ES = read.Number_of_Editing_Sites
+    # Split the DataFrame into smaller batches
+    batches = [clusters_df.iloc[i:i + batch_size] for i in range(0, len(clusters_df), batch_size)]
 
-    # Check conditions
+    # Use ThreadPoolExecutor to parallelize processing
+    with ThreadPoolExecutor(max_workers=max_threads) as executor:  
+        futures = [executor.submit(process_reads, batch) for batch in batches]
+        for future in as_completed(futures):
+            future.result()  # Ensure that exceptions are raised
 
-    # filter ES and MM - count number of sites which qualities are bigger or equal to threshold. 
-    # if the count is less than the minimum number of ES, the read did not passed this condition.
-    # !!!!!!!!!!!!!!! ALL OTHER CONDITIONS WILL BE CHECKED ONLY ON THE PASSED ES & MM !!!!!!!!!!!!!!!!!!
-    num_of_passed_ES, passed_ES_map = filter_sites(editing_sites_map, args.min_phred_score)
-    num_of_passed_MM, passed_MM_map = filter_sites(MM_sites_map, args.min_phred_score)
-    min_phred_score_passed = True if num_of_passed_ES >= args.min_editing_sites else False
-
-    # if no passed editing sites detected - continue to the next read
-    # (keep column 'Edited' as False)
-    if num_of_passed_ES == 0:
-        continue
-    # else - read was edited
-    edited = True
-
-    # get read is mate1/mate2:
-    sam_flag = read.flag
-    mate = 2 if (sam_flag & 128) else 1
     
-    # cluster_len = last position of editing site list minus first position of editing sites list
-    cluster_len = max(passed_ES_map.keys()) - min(passed_ES_map.keys())
+    # WRITE OUTPUT
+    #CREATE DATA FRAMES
+    if(len(passed_reads_data) == 0):
+        f = open(f'{sample_id}_no_passed_reads.txt', "x")
+        sys.exit()
+    passed_df = pd.DataFrame(passed_reads_data)
 
-    # editing fraction
-    editing_fraction = 0 if num_of_passed_MM == 0 else num_of_passed_ES / num_of_passed_MM
+    condition_header = [
+        'Read_ID', 'Passed_All', 'Edited',
+        'Min_Editing_Sites_' + str(args.min_editing_sites), 
+        'Min_Editing_to_Total_MM_Fraction_' + str(args.min_editing_fraction), 
+        'Min_Editing_Phred_Score_' + str(args.min_phred_score), 
+        'Min_Editing_to_Read_Length_Ratio_' + str(args.min_es_length_ratio), 
+        'Min_Cluster_Length_to_Read_Length_Ratio_' + str(args.min_cluster_length_ratio)
+        ]
+    condition_df = pd.DataFrame(condition_analysis_rows, columns=condition_header)
 
-    min_editing_sites_passed = check_Condition(num_of_passed_ES, args.min_editing_sites)
-    min_editing_fraction_passed = check_Condition(editing_fraction, args.min_editing_fraction)
-    min_es_length_ratio_passed = check_Condition(num_of_passed_ES / read.Alignment_length, args.min_es_length_ratio)
-    min_cluster_length_ratio_passed = check_Condition(cluster_len / read.Alignment_length, args.min_cluster_length_ratio)
-
-    #list of conditions -
-    conditions_list = [min_editing_sites_passed, min_editing_fraction_passed, min_phred_score_passed, min_es_length_ratio_passed, min_cluster_length_ratio_passed]
-
-    # Update passed_all_conditions flag
-    passed_all_conditions = all(conditions_list)
-
-
-    # if read passed all parameteres add a row to the passed_statisctics
-    if passed_all_conditions and out_passed:
-        avg_phred_score, avg_es_distance= es_statistics(passed_ES_map)
-        motifs_count_data = motifs_count(read.Read_Sequence, passed_ES_map)
-        es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'number_of_passed_MM': num_of_passed_MM,'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
-        all_data = {"Read_ID": read[0]}
-        all_data.update({"mate": mate})
-        all_data.update(es_statistics_data)
-        all_data.update(motifs_count_data)
-        passed_reads_data.append(all_data)
-    # append details to the condition_analysis file
+    if out_passed:
+        # Write all the rows to the passed CSV file
+        passed_df.to_csv(passed_csv_path, index=False)
     if out_analysis:
-        condition_analysis_rows.append([read[0]] + [passed_all_conditions] + [edited] + conditions_list)
+        # Write all the rows to the condition_analysis CSV file
+        condition_df.to_csv(condition_analysis_path, index=False)
+    if out_json:
+        json_data = create_json(passed_df, condition_df)
+        # write the data to a json file
+        with open(json_summary_path, 'w') as f:
+            json.dump(json_data, f, indent = 4)
 
-
-# WRITE OUTPUT
-#CREATE DATA FRAMES
-if(len(passed_reads_data) == 0):
-    f = open(f'{sample_id}_no_passed_reads.txt', "x")
-    sys.exit()
-passed_df = pd.DataFrame(passed_reads_data)
-
-condition_header = ['Read_ID', 'Passed_All', 'Edited', 'Min_Editing_Sites_' + str(args.min_editing_sites), 'Min_Editing_to_Total_MM_Fraction_' + str(args.min_editing_fraction), 'Min_Editing_Phred_Score_' + str(args.min_phred_score), 'Min_Editing_to_Read_Length_Ratio_' + str(args.min_es_length_ratio), 'Min_Cluster_Length_to_Read_Length_Ratio_' + str(args.min_cluster_length_ratio)]
-condition_df = pd.DataFrame(condition_analysis_rows, columns=condition_header)
-
-if out_passed:
-    # Write all the rows to the passed CSV file
-    passed_df.to_csv(passed_csv_path, index=False)
-if out_analysis:
-    # Write all the rows to the condition_analysis CSV file
-    condition_df.to_csv(condition_analysis_path, index=False)
-if out_json:
-    json_data = create_json(passed_df, condition_df)
-    # write the data to a json file
-    with open(json_summary_path, 'w') as f:
-        json.dump(json_data, f, indent = 4)
-
-
+if __name__ == "__main__":
+    main()
