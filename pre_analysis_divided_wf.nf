@@ -451,14 +451,14 @@ workflow pair_end {
         FASTP(samples_ch)
         fastp_ch = FASTP.out[0].collect()
 
-        if ( params.flag ) {
-        bar()
-        omega_ch = bar.out
-        }
-        else {
-            foo()
-            omega_ch = foo.out
-        }
+        // if ( params.flag ) {
+        // bar()
+        // omega_ch = bar.out
+        // }
+        // else {
+        //     foo()
+        //     omega_ch = foo.out
+        // }
         //
         FIRST_STAR_MAP(fastp_ch, params.genome_index_dir)
         FIRST_STAR_MAP.out.fastqs
