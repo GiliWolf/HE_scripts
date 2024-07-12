@@ -42,12 +42,12 @@ params {
 
     // detect script argumnets - 
         detection_columns_select = 'all'
-        max_detection_threads = 5
-        detection_batch_size = 50
+        max_detection_threads = 3
+        detection_batch_size = 100
     
     // FILTER
-        max_filter_threads = 5
-        filter_batch_size = 50
+        max_filter_threads = 3
+        filter_batch_size = 100
         filter_output_types = "all"
     // Filter PE
         unmapped_fastq = "${params.input_dir}/first_map"

@@ -3,6 +3,7 @@
 // ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf --SE_HE_reads <path_to_sam> --fasta_path <path_to_genome_fasta> --outdir <outdir_path> --pair_end 0 --ref_base A --alt_base G -entry independent
 
 process DETECT {
+        maxForks 5
         tag "detection: ${sample_id}"
         publishDir "${params.detect_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
@@ -29,6 +30,7 @@ process DETECT {
 }
 
 process FILTER {
+        maxForks 5
         tag "filter: ${sample_id}"
         publishDir "${params.filter_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
