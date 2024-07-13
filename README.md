@@ -32,6 +32,9 @@ ___________________________________
 ## Main algorithm
 <p> Similar to the original pipeline, the process involves aligning the samples to the original genome, then transforming the unmapped reads and mapping them again to the transformed genome. Finally, the second mapped reads are retransformed to their original sequence.</p>
 
+### simple usage
+>nextflow -c pre_analysis.nf.config run pre_analysis.nf --reads_dir <reads_dir_path> --outdir <output_dir_path> [--pair_end]
+
 ### Input File Parameters
 
 - `--pair_end`
@@ -169,6 +172,11 @@ ___________________________________
 	- *Passed* CSV with the information of the reads that passed all of the consitions
 	- *Condition analysis* CSV file with True/False for each of the conditions (passed/not passed) for each read
 	- *Summary* JSON file of the sample
+
+### simple usage
+>./nextflow -c HE_detection.config.nf run HE_detection.n --reads_dir <path_to_transformed_sam_dir> --outdir <output_dir_path> [--pair_end]
+>#for independent run:
+>./nextflow -c HE_detection.config.nf run HE_detection.nf --HE_reads <path_to_sam_file> --fasta_path <path_to_genome_fasta> --outdir <output_dir_path> [--pair_end] --ref_base <ref_base{A/G/C/T}> --alt_base <alt_base{A/G/C/T}> -entry independent
 ### Input paths
 
 - ``reads_suffix``
