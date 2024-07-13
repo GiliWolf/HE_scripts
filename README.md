@@ -175,13 +175,12 @@ ___________________________________
 
 ### simple usage
 >./nextflow -c HE_detection.config.nf run HE_detection.n --reads_dir <path_to_transformed_sam_dir> --outdir <output_dir_path> [--pair_end]
->
->-------------------------
+
 >#for independent run:
 >
->./nextflow -c HE_detection.config.nf run HE_detection.nf --HE_reads <path_to_sam_file> --fasta_path <path_to_genome_fasta> --outdir <output_dir_path> [--pair_end] --ref_base <ref_base{A/G/C/T}> --alt_base <alt_base{A/G/C/T}> -entry independent
+>>./nextflow -c HE_detection.config.nf run HE_detection.nf --HE_reads <path_to_sam_file> --fasta_path <path_to_genome_fasta> --outdir <output_dir_path> [--pair_end] --ref_base <ref_base{A/G/C/T}> --alt_base <alt_base{A/G/C/T}> -entry independent
 >
->#for example: ./nextflow -c HE_detection.config.nf run HE_detection.nf --HE_reads /sam_dir/*.sam --fasta_path hg38.fa --outdir independent_HE --pair_end --ref_base A --alt_base G -entry independent
+>>#for example: ./nextflow -c HE_detection.config.nf run HE_detection.nf --HE_reads /sam_dir/*.sam --fasta_path hg38.fa --outdir independent_HE --pair_end --ref_base A --alt_base G -entry independent
 ### Input paths
 
 - ``reads_suffix``
