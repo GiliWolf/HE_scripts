@@ -25,7 +25,6 @@ process DETECT {
         """
         ${params.python_command} ${python_script} -i ${file} -g ${genome} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -t ${params.max_detection_threads} -b ${params.detection_batch_size} -c ${params.detection_columns_select}
 
-        
         """ 
 }
 
@@ -46,7 +45,7 @@ process FILTER {
         analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
         summary_output_path = "${sample_id}${params.file_seperator}summary.json"
     """
-    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -b ${params.filter_batch_size} -ot ${params.filter_output_types}
+    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -b ${params.filter_batch_size} -ot ${params.filter_output_types} -es ${params.min_editing_sites} -ef ${params.min_editing_fraction} -ps ${params.min_phred_score} -es2l ${params.min_es_length_ratio} -cl2l ${params.min_cluster_length_ratio}
     """
 }
 
@@ -65,9 +64,11 @@ process PE_FILTER {
     """
     """
 }
+ 
 
 process GRID_SEARCH_FILTER {
-        tag "filter: ${sample_id}"
+        maxForks 5
+        tag "GS filter: ${sample_id}"
         publishDir "${params.grid_search_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
     input:
@@ -76,7 +77,7 @@ process GRID_SEARCH_FILTER {
         path(grid_search_python_script)
 
     output:
-        tuple val(base_comb), path('*.json')
+        tuple val(base_comb), path('*.json'), optional: true
         // stdout
     script:
     """
@@ -94,6 +95,7 @@ process MERGE_GRID_OUTPUT{
 
     output:
         path('*')
+        stdout
     script:
     merged_output_file = "${base_comb}_merged.json"
 
@@ -125,13 +127,38 @@ process MERGE_GRID_OUTPUT{
     # Remove individual JSON files if the -remove flag is set
     if [ "\$REMOVE" = true ]; then
         for FILE in "\${json_list[@]}"; do
-            rm "\$FILE"
+            echo "removing file \$FILE:"
+            rm \$(readlink -f \$FILE)
         done
     fi
 
     """
 }
 
+process REMOVE_JSONS {
+        tag "remove jsons: ${base_comb}"
+
+    input:
+        tuple val(base_comb), path(json_files)
+
+    output:
+        stdout
+    
+    script:
+    """
+    # MODIFY FASTQS FILES INTO A BASH LIST:  
+    # transform fastq file's names into string
+    jsons_string="${json_files}"
+    # Split the string into a list
+    IFS=' ' read -ra json_list <<< "\$jsons_string"
+    
+    for FILE in "\${json_list[@]}"; do
+        echo "removing file \$FILE:"
+        rm \$(readlink -f \$FILE)
+    done
+    """
+
+}
 
 workflow independent{ 
     def base_comb="${params.ref_base}2${params.alt_base}"
@@ -153,7 +180,7 @@ workflow independent{
     detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
     
     after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
-    // // after_filter_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+    after_filter_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.GS_filter_script, params.grid_serch_python_script)
 
 }
 
@@ -179,8 +206,11 @@ workflow {
     
     after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
 
-    // grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
+    grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.filter_python_script, params.grid_serch_python_script)
 
-    // MERGE_GRID_OUTPUT(grid_search_ch)
-
+    grid_search_ch.view()
+    MERGE_GRID_OUTPUT(grid_search_ch)
+    MERGE_GRID_OUTPUT.out[1].view()
+    // rm_ch = REMOVE_JSONS(grid_search_ch)
+    // rm_ch.view()
 }

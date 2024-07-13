@@ -274,7 +274,7 @@ for read in clusters_df.itertuples():
 # WRITE OUTPUT
 #CREATE DATA FRAMES
 if(len(passed_reads_data) == 0):
-    f = open(f'{sample_id}_no_passed_reads.txt', "x")
+    f = open(f'{sample_id}_no_passed_reads.txt', "w")
     sys.exit()
 passed_df = pd.DataFrame(passed_reads_data)
 

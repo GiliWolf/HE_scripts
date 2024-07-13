@@ -491,7 +491,7 @@ workflow pair_end {
                                 file)} 
         
         // Channel
-        //     .fromPath("/private10/Projects/Gili/HE_workdir/first_part/GTEX/WholeBlood/second_map/**/*_Aligned.out*")
+        //     .fromPath("/private10/Projects/Gili/HE_workdir/first_part/GTEX/MuscleSkeletal_PE/second_map/**/*_Aligned.out*")
         //     .collect()
         //     .flatten()
         //     .map { file -> tuple(
@@ -502,12 +502,12 @@ workflow pair_end {
         // Channel
         //     .fromFilePairs(params.PE_original_reads)
         //     .set {originial_reads_ch}
-        // //
-        unmapped_reads_ch.view()
-        mapped_transformed_ch.view()
+        //
+        // unmapped_reads_ch.view()
+        // mapped_transformed_ch.view()
         files_to_retransform_ch = unmapped_reads_ch.combine(mapped_transformed_ch, by:0)
-        files_to_retransform_ch.view()
-        //retransform_ch = RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
+        // files_to_retransform_ch.view()
+        retransform_ch = RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
 
     // emit:
 }

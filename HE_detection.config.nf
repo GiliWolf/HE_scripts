@@ -16,10 +16,11 @@ params {
         mate_seperator="_"
         mate1_suff="1"
         mate2_suff="2"
-        input_dir="/private10/Projects/Gili/HE_workdir/first_part/GTEX_ARTERT_umap"
+        input_dir="/private10/Projects/Gili/HE_workdir/first_part/GTEX/BrainCerebellum_PE_multimappers"
+        HE_reads = "${params.input_dir}/re-transform/**/*${params.reads_suffix}"
         SE_HE_reads="${params.input_dir}/re-transform/**/*${params.reads_suffix}"
         PE_HE_reads = "${params.input_dir}/re-transform/**/*${params.reads_suffix}"
-        pair_end=0
+        pair_end=1
         fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
         detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/parallel_detection.py"
         filter_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/parallel_filter.py"
@@ -34,7 +35,7 @@ params {
         
 
     // Output dirs:
-        outdir = "detection/GTEX_ARTERT_umap_parallel_filter"
+        outdir = "detection/BrainCerebellum_PE_multimappers"
         detect_output_dir = "${params.outdir}/detected_clusters"
         filter_output_dir = "${params.outdir}/filtered_clusters"
         PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
@@ -49,14 +50,23 @@ params {
         max_filter_threads = 3
         filter_batch_size = 100
         filter_output_types = "all"
+
+        // filter thresholds
+        min_editing_sites = 1
+        min_editing_fraction = 0.6
+        min_phred_score = 30
+        min_es_length_ratio = 0.05
+        min_cluster_length_ratio = 0.1
     // Filter PE
         unmapped_fastq = "${params.input_dir}/first_map"
         unmapped_star_file_format_mate1 = ".Unmapped.out.mate1"
         unmapped_star_file_format_mate2 = ".Unmapped.out.mate2"
 
+    //GRID_SEARCH
+    GS_filter_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/filter_clusters.py"
     // ranges of grid search
     // editing sites - 
-    es_start = 0
+    es_start = 1
     es_end = 1
     es_step = 1
 
@@ -74,7 +84,7 @@ params {
     
     // num of es to read length ratio
     es2l_start = 0.03
-    es2l_end = 0.04
+    es2l_end = 0.05
     es2l_step = 0.01
 
     // cluster length to read length ratio

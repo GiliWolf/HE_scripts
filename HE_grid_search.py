@@ -129,7 +129,7 @@ def run_script(params):
     command.extend(['-o', filtered_output_path])
     command.extend(['-O', condition_analysis_output_path])
     command.extend(['-j', json_output_path])
-    command.extend(['-t', output_files_type])
+    command.extend(['-ot', output_files_type])
     command.extend(command_parameters)
 
     # # add json file to list

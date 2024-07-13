@@ -128,10 +128,10 @@ def sample_motif(nt_count_df, location, total_num_of_ES):
     return nt_precentage, nt_count
 
 #create json file summarizing key statistics of he passed rfeads
-def create_json(passed_df, condition_df):
+def create_json(passed_df, condition_df, before_filter_reads_count):
 
     # init general data dictonary 
-    json_data = {"sample_id:": sample_id}
+    json_data = {"sample_id:": sample_id, "total reads before filtering:": before_filter_reads_count}
     
     # add total number of filtered reads
     json_data["number of passed reads:"] = int(condition_df['Passed_All'].sum())
@@ -283,7 +283,7 @@ def process_reads(clusters_df):
 def main():
     # read data from the detected clusters file
     clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
-    
+    before_filter_reads_count = clusters_df.shape[0]
     # Split the DataFrame into smaller batches
     batches = [clusters_df.iloc[i:i + batch_size] for i in range(0, len(clusters_df), batch_size)]
 
@@ -297,7 +297,7 @@ def main():
     # WRITE OUTPUT
     #CREATE DATA FRAMES
     if(len(passed_reads_data) == 0):
-        f = open(f'{sample_id}_no_passed_reads.txt', "x")
+        f = open(f'{sample_id}_no_passed_reads.txt', "w")
         sys.exit()
     passed_df = pd.DataFrame(passed_reads_data)
 
@@ -318,7 +318,7 @@ def main():
         # Write all the rows to the condition_analysis CSV file
         condition_df.to_csv(condition_analysis_path, index=False)
     if out_json:
-        json_data = create_json(passed_df, condition_df)
+        json_data = create_json(passed_df, condition_df, before_filter_reads_count)
         # write the data to a json file
         with open(json_summary_path, 'w') as f:
             json.dump(json_data, f, indent = 4)
