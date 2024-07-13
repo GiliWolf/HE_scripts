@@ -21,6 +21,9 @@ ___________________________________
 <p> Transformation of the genome (12 transformations for each possible base combination) and 
 indexing the transformed genomes (using STAR).</p>
 
+### simple usage
+>nextflow genome_setup.nf -c genome_setup.nf.config --genome_fasta <genome_fasta_file>
+
  - `-genome_fasta` : path to genome's fasta file to be transformed
 - `-outdir` : path to the output directory
 
