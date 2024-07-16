@@ -16,10 +16,11 @@ params {
         mate_seperator="_"
         mate1_suff="1"
         mate2_suff="2"
-        input_dir="/private10/Projects/Gili/HE_workdir/first_part/GTEX/BrainCerebellum_PE_multimappers"
-        HE_reads = "${params.input_dir}/re-transform/**/*${params.reads_suffix}"
-        SE_HE_reads="${params.input_dir}/re-transform/**/*${params.reads_suffix}"
-        PE_HE_reads = "${params.input_dir}/re-transform/**/*${params.reads_suffix}"
+        input_dir="/private10/Projects/Gili/HE_workdir/first_part/GTEX/BrainCerebellum_PE"
+        retransform_dir_name = "re-transform"
+        HE_reads = "${params.input_dir}/${params.retransform_dir_name}/**/*${params.reads_suffix}"
+        SE_HE_reads="${params.input_dir}/${params.retransform_dir_name}/**/*${params.reads_suffix}"
+        PE_HE_reads = "${params.input_dir}/${params.retransform_dir_name}/**/*${params.reads_suffix}"
         pair_end=1
         fasta_path="/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa"
         detect_python_script = "/private10/Projects/Gili/HE_workdir/HE_scripts/parallel_detection.py"
@@ -35,7 +36,7 @@ params {
         
 
     // Output dirs:
-        outdir = "detection/BrainCerebellum_PE_multimappers"
+        outdir = "detection/GTEX/BrainCerebellum_PE"
         detect_output_dir = "${params.outdir}/detected_clusters"
         filter_output_dir = "${params.outdir}/filtered_clusters"
         PE_filter_output_dir = "${params.outdir}/PE_filtered_clusters"
@@ -50,6 +51,7 @@ params {
         max_filter_threads = 3
         filter_batch_size = 100
         filter_output_types = "all"
+        no_filter = false
 
         // filter thresholds
         min_editing_sites = 1
@@ -95,7 +97,9 @@ params {
     // merge json
     remove_jsons = 1
 
-
+    //CONTROL PRCOESSES
+    no_filter = false
+    grid_search = false
 }
 
 // container settings:
