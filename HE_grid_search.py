@@ -97,17 +97,13 @@ python_command = "python"
 filter_script = args.filter_script_path
 
 # file parameters
-# input_file = "/private10/Projects/Gili/HE_workdir/detection/second_try/detected_clusters/A2C/A2C_SRR11548778_re-transformed_detected.csv"
-# sample_id = "A2C_SRR11548778"
-# output_dir = "/private10/Projects/Gili/HE_workdir/detection/grid_search"
 input_file = args.input_file
 sample_id = args.sample_id
 output_dir = args.output_dir
 output_files_type = 'all'
-output_merged_file = str(sample_id) + "_merged_file.json"
 base_comb = args.base_comb
 
-json_files = []
+
 def run_script(params):
     # Construct the command to run the script with the current parameters
     command = [python_command, filter_script]
@@ -129,15 +125,10 @@ def run_script(params):
     command.extend(['-o', filtered_output_path])
     command.extend(['-O', condition_analysis_output_path])
     command.extend(['-j', json_output_path])
+    command.extend(['-t', 1]) # internal filter scripte max threads
     command.extend(['-ot', output_files_type])
     command.extend(command_parameters)
 
-    # # add json file to list
-    # json_files.append(json_output_path)
-
-    # # create json file 
-    # with open(json_output_path, 'w') as f:
-    #     json.dump(merged_data, f, indent=4)
 
     try:
         # run process
@@ -156,31 +147,14 @@ def run_script(params):
         print("Error:", e)
         print("STDERR from subprocess:")
         print(e.stderr)
-    except FileNotFoundError:
-        print(f"File {condition_analysis_output_path} does not exist.")
+    except FileNotFoundError as fe:
+        print(f"File does not exist: {fe}")
 
+def main():
+    # Run the script for each parameter combination concurrently
+    with ThreadPoolExecutor(max_workers = args.max_threads) as executor:
+        executor.map(run_script, param_combinations)
 
-# Run the script for each parameter combination concurrently
-with ThreadPoolExecutor(max_workers = args.max_threads) as executor:
-    executor.map(run_script, param_combinations)
-
-# # after all the runs - combine all json files into ine file 
-# def merge_json_files(json_files):
-#     merged_data = []
-#     for json_file in json_files:
-#         # striped_json = str(json_file).rstrip('./')
-#         with open(json_file, 'r') as f:
-#             merged_data.extend(json.load(f))
-#     return merged_data
-
-# # with open(output_merged_file, "w") as outfile:
-# #    outfile.write('{}'.format('\n'.join([open(f, "r").read() for f in json_files])))
-# merged_data = merge_json_files(json_files)
-# with open(output_merged_file, 'w') as f:
-#     json.dump(merged_data, f, indent=4)
-
-# #delete all files:
-# for file in json_files:
-#     os.remove(file)
-
+if __name__ == "__main__":
+    main()
 

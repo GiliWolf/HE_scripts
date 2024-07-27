@@ -3,12 +3,11 @@ import pandas as pd
 
 """
 to-do:
-      1) get info from detectionns file 
+      1) get info from detections file 
       2) check resonable insert size 
-      3) check reversed editing 
+      3) check reversed editing ** only check this, add column 
       4) if 1 is mapped - check position are ok
 """
-
 
 
 fastq_input_file = "/private10/Projects/Gili/HE_workdir/first_part/PE_test/first_map/SRR11548778.Unmapped.out.mate1"

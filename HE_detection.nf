@@ -1,7 +1,24 @@
 // usage - ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf
 // independent - 
 // ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf --SE_HE_reads <path_to_sam> --fasta_path <path_to_genome_fasta> --outdir <outdir_path> --pair_end 0 --ref_base A --alt_base G -entry independent
+process INDEX_BAM {
+        maxForks 3
+        tag "detection: ${sample_id}"
+        publishDir "${params.detect_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
+    input:
+        tuple val(base_comb), val(sample_id), path(bam_file)
+
+    output:
+        tuple val(base_comb), val(sample_id), path(bam_file), path("*.bai")
+
+    script:
+
+        """
+        samtools index -@ 16 ${bam_file}
+
+        """ 
+}
 process DETECT {
         maxForks 3
         tag "detection: ${sample_id}"
@@ -66,7 +83,7 @@ process PE_FILTER {
 }
  
 
-process GRID_SEARCH_FILTER {
+process GRID_SEARCH{
         maxForks 3
         tag "GS filter: ${sample_id}"
         publishDir "${params.grid_search_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
@@ -77,11 +94,11 @@ process GRID_SEARCH_FILTER {
         path(grid_search_python_script)
 
     output:
-        tuple val(base_comb), path('*')
-        
+        tuple val(base_comb), path('*.json'), optional: true
+
     script:
     """
-    ${params.python_command} ${grid_search_python_script} -i ${file} -s ${filter_python_script} -bc ${base_comb} -id ${sample_id} -D "./" -es ${params.es_start} ${params.es_end} ${params.es_step} -ef ${params.ef_start} ${params.ef_end} ${params.ef_step} -ps ${params.ps_start} ${params.ps_end} ${params.ps_step} -es2l ${params.es2l_start} ${params.es2l_end} ${params.es2l_step} -cl2l ${params.cl2l_start} ${params.cl2l_end} ${params.cl2l_step}
+    ${params.python_command} ${grid_search_python_script} -i ${file} -s ${filter_python_script} -bc ${base_comb} -id ${sample_id} -th ${params.GS_max_threads} -D "" -es ${params.es_start} ${params.es_end} ${params.es_step} -ef ${params.ef_start} ${params.ef_end} ${params.ef_step} -ps ${params.ps_start} ${params.ps_end} ${params.ps_step} -es2l ${params.es2l_start} ${params.es2l_end} ${params.es2l_step} -cl2l ${params.cl2l_start} ${params.cl2l_end} ${params.cl2l_step}
 
     """
 }
@@ -172,18 +189,11 @@ workflow independent{
 
     def base_comb="${params.ref_base}2${params.alt_base}"
 
-    if (params.pair_end == 0)                         //SE
-        Channel
-            .fromPath(params.SE_HE_reads, checkIfExists: true)
+    Channel
+            .fromPath(params.HE_reads, checkIfExists: true)
             .map {file -> tuple (base_comb,file.baseName, file)}
             .set {samples_ch}
-    else if (params.pair_end == 1)                    //PE
-        Channel
-            .fromPath(params.PE_HE_reads, checkIfExists: true)
-            .map {file -> tuple (base_comb, file.baseName, file)}
-            .set {samples_ch} 
-    else             // raise error if pair_end flag != 0/1
-        error "----------------\n error: pair_end flag must be 0/1\n----------------"
+
 
 
     detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
@@ -193,7 +203,7 @@ workflow independent{
     }
 
     if (params.grid_search){
-        grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.GS_filter_script, params.grid_serch_python_script)
+        grid_search_ch = GRID_SEARCH(detecter_clusters_ch, params.GS_filter_script, params.grid_search_python_script)
         merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
         files_to_remove = grid_search_ch.map {tuple -> tuple[1]}.filter (~/.*\.json$/)
         REMOVE_JSONS(files_to_remove)
@@ -211,15 +221,16 @@ workflow {
         .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.baseName, file)}
         .set {samples_ch} 
 
-    detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
+    detected_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
     
     if (!params.no_filter){
-        after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
+        after_filter_ch = FILTER(detected_clusters_ch, params.filter_python_script)
     }
     if (params.grid_search){
-        grid_search_ch = GRID_SEARCH_FILTER(detecter_clusters_ch, params.GS_filter_script, params.grid_serch_python_script)
+        grid_search_ch = GRID_SEARCH(detected_clusters_ch, params.filter_python_script, params.grid_search_python_script)
+        grid_search_ch.view()
         merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
-        files_to_remove = grid_search_ch.map {tuple -> tuple[1]}.filter (~/.*\.json$/)
+        files_to_remove = grid_search_ch.map {tuple -> tuple[1]}
         REMOVE_JSONS(files_to_remove)
     }
     // Channel

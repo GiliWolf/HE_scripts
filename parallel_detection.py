@@ -235,6 +235,7 @@ def process_reads_batch(reads, fasta_file, bam_file):
     return rows
 
 def main():
+    # ice cream / time - checl time
     # Open the BAM file for reading
     bam_file = pysam.AlignmentFile(bam_path, "rb")
 
