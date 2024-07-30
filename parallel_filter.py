@@ -25,6 +25,10 @@ the script output 3 files (if -t == 'all'):
 2 - CSV file with True/False for each of the conditions (passes/not passed) for each read
 3 - JSON summary file of the sample
 ----------------------------
+Parallel Processing:
+
+The CSV file will be divided into batches for parallel processing based on the number of threads. The size of each batch is determined as follows: int(num_of_reads / max_threads).
+----------------------------
 
 Usage:
     filter_clusters.py -i <SAMPLE_CLUSTERS_CSV> \
@@ -69,7 +73,7 @@ parser.add_argument("-i", "--input", dest ="sample_clusters_csv", type=str, requ
 
 # OPTIONAL: Controlling parallel processing
 parser.add_argument("-t", "--threads", type=int, required=False, default=5, help="Number of threads to parallel processing.(default: 5)")
-parser.add_argument("-b", "--batch", type=int, required=False, default=50, help="Batch size (number of reads) to be processed by each thread. (default: 50)")
+
 
 # OPTIONAL: Conditions parameters
 # min_editing_sites, default 0 
@@ -99,7 +103,6 @@ json_summary_path = str(args.json_path).strip()
 
 # parallel processing controling
 max_threads = args.threads
-batch_size = args.batch
 
 # output types -
 sample_id = args.sample_id
@@ -284,6 +287,7 @@ def main():
     # read data from the detected clusters file
     clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
     before_filter_reads_count = clusters_df.shape[0]
+    batch_size = int(before_filter_reads_count / max_threads)
     # Split the DataFrame into smaller batches
     batches = [clusters_df.iloc[i:i + batch_size] for i in range(0, len(clusters_df), batch_size)]
 

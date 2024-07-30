@@ -439,7 +439,7 @@ process RETRANSFORM {
 
     // python re-transform.py -s <sam_file> -o <output_path> -i <original_fastq_path> [-I <original_fastq_path_2>] <pair_end[0/1]>
     script:
-        outout_path = "${base_comb}${params.file_seperator}${sample_id}${params.file_seperator}re-transformed.sam"
+        outout_path = "${base_comb}${params.file_seperator}${sample_id}${params.file_seperator}re-transformed.bam"
         if (params.pair_end == 0)   //SE
             """
             ${params.python_command} ${python_script} -s ${bam_file} -o ${outout_path} -i ${original_reads} -pe ${params.pair_end}

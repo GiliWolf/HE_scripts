@@ -27,6 +27,14 @@ the script output a CSV file with the following parameters:
     14. Number_of_MM (number of total mismatches of Read_Sequence compare to Reference_Sequence)
     15. EditingSites_to_PhredScore_Map (key: position, value: phred quality score)
     16. MM_to_PhredScore_Map (key: position, value: phred quality score)
+
+----------------------------
+Parallel Processing:
+
+The BAM file will be divided into batches for parallel processing based on the number of threads. The size of each batch is determined as follows:
+    (-) If the number of reads (num_of_reads) is provided, each batch will be sized at int(num_of_reads / max_threads).
+        This ensures that the workload is evenly distributed among the available threads.
+    (-) If the number of reads is not specified, a default batch size of 50 will be used.
 ----------------------------
 
 usage: detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_BASE -ab ALT_BASE [-c {all,basic}]
@@ -34,8 +42,12 @@ usage: detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_
   -h --help            show this help message and exit
   -i --bam_path 
                         Path to the BAM file.
-  -g --fasta_path 
+  -f --fasta_path 
                         Path to the FASTA genome file.
+  -I --bam_index_path 
+                        Path to the index BAI file.
+  -F --fasta_index_path 
+                        Path to the index FAI file.
   -o --output_path 
                         Path to the output CSV file.
   -rb --ref_base 
@@ -44,8 +56,8 @@ usage: detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_
                         Alternate base.
   -t --threads  
                         Number of threads to parallel processing.(default: 5)
-  -b --batch 
-                        Batch size (number of reads) to be processed by each thread. (default: 50)
+  -n --num_of_reads 
+                       number of reads in the bam file. (batch size will be calculated using int(reads_count/threads))
   -c {all,basic}, --output_columns {all,basic}
                         Choose the type of output columns: 'all' or 'basic' ('Read_ID', 'Chromosome',
                         'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites')
@@ -57,24 +69,35 @@ fasta_lock = threading.Lock()
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="This script is designed to analyze and detect the editing events from the overall general mismatches events.")
 parser.add_argument("-i","--bam_path", type=str, required=True, help="Path to the BAM file.")
-parser.add_argument("-g", "--fasta_path", type=str, required=True, help="Path to the FASTA genome file.")
+parser.add_argument("-f", "--fasta_path", type=str, required=True, help="Path to the FASTA genome file.")
+parser.add_argument("-I","--bam_index_path", type=str, required=True, help="Path to the index BAI file.")
+parser.add_argument("-F","--fasta_index_path", type=str, required=True, help="Path to the index FAI file.")
 parser.add_argument("-o","--output_path", type=str, required=True, help="Path to the output CSV file.")
 parser.add_argument("-rb", "--ref_base", type=str, required=True, help="Reference base.")
 parser.add_argument("-ab", "--alt_base", type=str, required=True, help="Alternate base.")
 parser.add_argument("-t", "--threads", type=int, required=False, default=5, help="Number of threads to parallel processing.(default: 5)")
-parser.add_argument("-b", "--batch", type=int, required=False, default=50, help="Batch size (number of reads) to be processed by each thread. (default: 50)")
+parser.add_argument("-n", "--num_of_reads", type=int, required=False, help="number of reads in the bam file.(batch size will be calculated using int(reads_count/threads))")
 parser.add_argument("-c","--output_columns", type=str, choices=["all", "basic"], default='all', help="Choose the type of output columns: 'all' or 'basic' ('Read_ID', 'Chromosome', 'strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction')")
 
 # Extract command line arguments
 args = parser.parse_args()
 bam_path = args.bam_path
 fasta_path = args.fasta_path
+bam_index_path = args.bam_index_path
+fasta_index_path = args.fasta_index_path
 output_path = args.output_path
 ref_base = args.ref_base
 alt_base = args.alt_base
 output_columns = args.output_columns
 max_threads = args.threads
-batch_size = args.batch
+reads_count = args.num_of_reads
+default_batch_size = 50
+
+# calculate batch size
+if (reads_count):
+    batch_size = int(reads_count/max_threads)
+else:
+    batch_size = default_batch_size
 
 # Base combination to MM column name map
 col_names_MM_map = {
@@ -237,10 +260,10 @@ def process_reads_batch(reads, fasta_file, bam_file):
 def main():
     # ice cream / time - checl time
     # Open the BAM file for reading
-    bam_file = pysam.AlignmentFile(bam_path, "rb")
+    bam_file = pysam.AlignmentFile(bam_path, "rb", index_filename=bam_index_path)
 
     # Open the FASTA genome file
-    fasta_file = pysam.FastaFile(fasta_path)
+    fasta_file = pysam.FastaFile(fasta_path, filepath_index=fasta_index_path)
 
     # Keep all the rows to be written at the end of the iteration
     rows = []
@@ -249,6 +272,7 @@ def main():
     batches = []
     batch = []
 
+    
     # split file into batches of reads
     for read in bam_file:
         batch.append(read)
