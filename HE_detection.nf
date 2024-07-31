@@ -23,7 +23,7 @@ process INDEX_BAM {
 }
 process DETECT {
         maxForks 3
-        tag "detection: ${sample_id}"
+        tag "detection: ${base_comb} -  ${sample_id}"
         publishDir "${params.detect_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
 
     input:
@@ -42,7 +42,7 @@ process DETECT {
         alt_base = comb_bases_list[1]
 
         """
-        ${params.python_command} ${python_script} -i ${bam_file} -f ${genome} -I ${bam_index_file} -F ${genome_index} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -t ${params.max_detection_threads} -n ${reads_count} -c ${params.detection_columns_select}
+        ${params.python_command} ${python_script} -i ${bam_file} -f ${genome} -I ${bam_index_file} -F ${genome_index} -o ${outout_path} -rb ${ref_base} -ab ${alt_base} -t ${params.max_detection_threads} -n ${reads_count} -b ${params.detection_batch_size} -c ${params.detection_columns_select}
 
         """ 
 }
@@ -64,7 +64,7 @@ process FILTER {
         analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
         summary_output_path = "${sample_id}${params.file_seperator}summary.json"
     """
-    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -ot ${params.filter_output_types} -es ${params.min_editing_sites} -ef ${params.min_editing_fraction} -ps ${params.min_phred_score} -es2l ${params.min_es_length_ratio} -cl2l ${params.min_cluster_length_ratio}
+    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -b ${params.filter_batch_size} -ot ${params.filter_output_types} -es ${params.min_editing_sites} -ef ${params.min_editing_fraction} -ps ${params.min_phred_score} -es2l ${params.min_es_length_ratio} -cl2l ${params.min_cluster_length_ratio}
     """
 }
 
@@ -187,62 +187,75 @@ process REMOVE_JSONS {
 
 }
 
-workflow independent{
+// workflow independent{
 
-    def base_comb="${params.ref_base}2${params.alt_base}"
+//     def base_comb="${params.ref_base}2${params.alt_base}"
 
-    Channel
-            .fromPath(params.HE_reads, checkIfExists: true)
-            .map {file -> tuple (base_comb,file.baseName, file)}
-            .set {samples_ch}
+//     Channel
+//             .fromPath(params.HE_reads, checkIfExists: true)
+//             .map {file -> tuple (base_comb,file.baseName, file)}
+//             .set {samples_ch}
 
+//     index_ch = INDEX_BAM(samples_ch)
 
-
-    detecter_clusters_ch = DETECT(samples_ch, params.fasta_path, params.detect_python_script)
+//     detecter_clusters_ch = DETECT(index_ch, params.fasta_path, params.detect_python_script)
     
-    if (!params.no_filter){
-        after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
-    }
+//     if (!params.no_filter){
+//         after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
+//     }
 
-    if (params.grid_search){
-        grid_search_ch = GRID_SEARCH(detecter_clusters_ch, params.GS_filter_script, params.grid_search_python_script)
-        merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
-        files_to_remove = grid_search_ch.map {tuple -> tuple[1]}.filter (~/.*\.json$/)
-        REMOVE_JSONS(files_to_remove)
-    }
+//     if (params.grid_search){
+//         grid_search_ch = GRID_SEARCH(detecter_clusters_ch, params.GS_filter_script, params.grid_search_python_script)
+//         merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
+//         files_to_remove = grid_search_ch.map {tuple -> tuple[1]}.filter (~/.*\.json$/)
+//         REMOVE_JSONS(files_to_remove)
+//     }
+// }
+
+workflow main_wf {
+    take:
+        samples_ch
+    
+    main: 
+        index_ch = INDEX_BAM(samples_ch) 
+
+        detected_clusters_ch = DETECT(index_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
+        
+        if (!params.no_filter){
+            after_filter_ch = FILTER(detected_clusters_ch, params.filter_python_script)
+        }
+        if (params.grid_search){
+            grid_search_ch = GRID_SEARCH(detected_clusters_ch, params.filter_python_script, params.grid_search_python_script)
+            grid_search_ch.view()
+            merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
+            files_to_remove = grid_search_ch.map {tuple -> tuple[1]}
+            REMOVE_JSONS(files_to_remove)
+        }
 }
-
 
 
 
 workflow {
 
-    // GET SAMPLES:
-    Channel
-        .fromPath(params.HE_reads, checkIfExists: true)
-        .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.baseName, file)}
-        .set {samples_ch}
+    if (params.independent){
+        def base_comb="${params.ref_base}2${params.alt_base}"
+        Channel
+            .fromList(['A2C', 'A2G', 'A2T', 'C2A', 'C2G', 'C2T', 'G2A', 'G2C', 'G2T', 'T2A', 'T2C', 'T2G'])
+            .set {bases_combination_ch}
 
-    index_ch = INDEX_BAM(samples_ch) 
-
-    detected_clusters_ch = DETECT(index_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
-    
-    if (!params.no_filter){
-        after_filter_ch = FILTER(detected_clusters_ch, params.filter_python_script)
+        Channel
+            .fromPath(params.HE_reads, checkIfExists: true)
+            .map {file -> tuple (file.baseName, file)}
+            .set {files_ch}
+        
+        samples_ch = bases_combination_ch.combine(files_ch)
     }
-    if (params.grid_search){
-        grid_search_ch = GRID_SEARCH(detected_clusters_ch, params.filter_python_script, params.grid_search_python_script)
-        grid_search_ch.view()
-        merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
-        files_to_remove = grid_search_ch.map {tuple -> tuple[1]}
-        REMOVE_JSONS(files_to_remove)
+    else {
+        Channel
+            .fromPath(params.HE_reads, checkIfExists: true)
+            .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.baseName, file)}
+            .set {samples_ch}
     }
-    // Channel
-    //     .fromPath("/private10/Projects/Gili/HE_workdir/detection/BrainCerebellum_PE_multimappers/grid_search/**/*.json")
-    //     .filter(~/.*(?<!merged\.json)$/)
-    //     .set {files_to_remove_ch}
 
-    // //files_to_remove_ch.view()
-    // rm_ch = REMOVE_JSONS(files_to_remove_ch)
-    // rm_ch.view()
+    main_wf(samples_ch)
 }

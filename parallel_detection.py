@@ -31,10 +31,11 @@ the script output a CSV file with the following parameters:
 ----------------------------
 Parallel Processing:
 
-The BAM file will be divided into batches for parallel processing based on the number of threads. The size of each batch is determined as follows:
-    (-) If the number of reads (num_of_reads) is provided, each batch will be sized at int(num_of_reads / max_threads).
-        This ensures that the workload is evenly distributed among the available threads.
-    (-) If the number of reads is not specified, a default batch size of 50 will be used.
+The BAM file will be divided into batches for parallel processing. 
+The size of each batch is determined as follows:
+    (-) If the batch size (-b) is provided, it will always be used.
+    (-) Otherwise, if the number of reads (-n) is provided, each batch will be sized at int(num_of_reads / max_threads).
+    (-) If neither the batch size nor the number of reads is provided, a default batch size of 50 will be used.
 ----------------------------
 
 usage: detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_BASE -ab ALT_BASE [-c {all,basic}]
@@ -76,7 +77,8 @@ parser.add_argument("-o","--output_path", type=str, required=True, help="Path to
 parser.add_argument("-rb", "--ref_base", type=str, required=True, help="Reference base.")
 parser.add_argument("-ab", "--alt_base", type=str, required=True, help="Alternate base.")
 parser.add_argument("-t", "--threads", type=int, required=False, default=5, help="Number of threads to parallel processing.(default: 5)")
-parser.add_argument("-n", "--num_of_reads", type=int, required=False, help="number of reads in the bam file.(batch size will be calculated using int(reads_count/threads))")
+parser.add_argument("-n", "--num_of_reads", type=int, required=False, help="Specify the total number of reads in the BAM file, in order to the batch size to be calculated as int(num_of_reads/threads). If a fixed batch size is preferred, use the -b option instead.")
+parser.add_argument("-b", "--batch", type=int, required=False, default=50, help="Specify the batch size, i.e., the number of reads to be processed by each thread. If the batch size should be determined by the read count, use the -n option instead (default: 50)")
 parser.add_argument("-c","--output_columns", type=str, choices=["all", "basic"], default='all', help="Choose the type of output columns: 'all' or 'basic' ('Read_ID', 'Chromosome', 'strand', 'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites', 'Editing_to_Total_MM_Fraction')")
 
 # Extract command line arguments
@@ -91,13 +93,16 @@ alt_base = args.alt_base
 output_columns = args.output_columns
 max_threads = args.threads
 reads_count = args.num_of_reads
+user_batch_size = args.batch
 default_batch_size = 50
 
 # calculate batch size
-if (reads_count):
+if (user_batch_size and (user_batch_size>0)):
+    batch_size = user_batch_size
+elif (reads_count and (reads_count>0)):
     batch_size = int(reads_count/max_threads)
 else:
-    batch_size = default_batch_size
+    batch_size =default_batch_size
 
 # Base combination to MM column name map
 col_names_MM_map = {

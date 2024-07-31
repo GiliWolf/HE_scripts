@@ -1,3 +1,9 @@
+## TO-DO - 
+#   Multimappers -
+#       (1) Choose read with top fraction 
+#       (2) add to json *uniqluey* before reads (group by ID)
+
+
 """
 Author: Gili Wolf
 Date: 02-03-2024

@@ -1,11 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 import pandas as pd
 import ast
 import sys
 import argparse
 from collections import Counter
 import json
+import numpy as np
+
 
 """
 Author: Gili Wolf
@@ -25,9 +26,13 @@ the script output 3 files (if -t == 'all'):
 2 - CSV file with True/False for each of the conditions (passes/not passed) for each read
 3 - JSON summary file of the sample
 ----------------------------
+Multimappers:
+Before applying the filtration process, if multiple loci exist for a given sample ID, the read with the maximum editing fraction will be selected. The editing fraction is calculated based on all MM, without considering quality checks.
+----------------------------
 Parallel Processing:
 
 The CSV file will be divided into batches for parallel processing based on the number of threads. The size of each batch is determined as follows: int(num_of_reads / max_threads).
+If -b is set, will use the number specified as batch size.
 ----------------------------
 
 Usage:
@@ -73,6 +78,7 @@ parser.add_argument("-i", "--input", dest ="sample_clusters_csv", type=str, requ
 
 # OPTIONAL: Controlling parallel processing
 parser.add_argument("-t", "--threads", type=int, required=False, default=5, help="Number of threads to parallel processing.(default: 5)")
+parser.add_argument("-b", "--batch", type=int, required=False, default=50, help="Specify the batch size, i.e., the number of reads to be processed by each thread. If not set, will use: int(num_of_reads / max_threads) (default: 50)")
 
 
 # OPTIONAL: Conditions parameters
@@ -103,7 +109,7 @@ json_summary_path = str(args.json_path).strip()
 
 # parallel processing controling
 max_threads = args.threads
-
+user_batch_size = args.batch
 # output types -
 sample_id = args.sample_id
 out_passed = args.output_types == 'all' or args.output_types == 'passed'
@@ -131,10 +137,10 @@ def sample_motif(nt_count_df, location, total_num_of_ES):
     return nt_precentage, nt_count
 
 #create json file summarizing key statistics of he passed rfeads
-def create_json(passed_df, condition_df, before_filter_reads_count):
+def create_json(passed_df, condition_df,multimappers_count, unique_count):
 
     # init general data dictonary 
-    json_data = {"sample_id:": sample_id, "total reads before filtering:": before_filter_reads_count}
+    json_data = {"sample_id:": sample_id,"multimappers total reads before filtering:": multimappers_count, "uniquely total reads before filtering:": unique_count}
     
     # add total number of filtered reads
     json_data["number of passed reads:"] = int(condition_df['Passed_All'].sum())
@@ -285,9 +291,24 @@ def process_reads(clusters_df):
 
 def main():
     # read data from the detected clusters file
-    clusters_df = pd.read_csv(sample_clusters_csv, index_col=0)
+    clusters_df = pd.read_csv(sample_clusters_csv)
+    multimappers_before_reads_count = clusters_df.shape[0]
+
+    # deal with multimappers - 
+    # 1- add editing fration based on Number_of_Editing_Sites & Number_of_total_MM
+    # Step 1: Add editing fraction based on Number_of_Editing_Sites and Number_of_total_MM
+    # Ensure the fraction is zero when Number_of_total_MM is zero
+    clusters_df['Editing_Fraction'] = np.where(clusters_df['Number_of_total_MM'] == 0, 
+                                                0, 
+                                            clusters_df['Number_of_Editing_Sites'] / clusters_df['Number_of_total_MM'])
+    # 2 - group using Read_ID and select the read with the highest fraction in the group 
+    clusters_df = clusters_df.loc[clusters_df.groupby('Read_ID')['Editing_Fraction'].idxmax()]
     before_filter_reads_count = clusters_df.shape[0]
-    batch_size = int(before_filter_reads_count / max_threads)
+
+    if (user_batch_size and (user_batch_size > 0)):
+        batch_size = user_batch_size
+    else:
+        batch_size = int(before_filter_reads_count / max_threads)
     # Split the DataFrame into smaller batches
     batches = [clusters_df.iloc[i:i + batch_size] for i in range(0, len(clusters_df), batch_size)]
 
@@ -322,7 +343,7 @@ def main():
         # Write all the rows to the condition_analysis CSV file
         condition_df.to_csv(condition_analysis_path, index=False)
     if out_json:
-        json_data = create_json(passed_df, condition_df, before_filter_reads_count)
+        json_data = create_json(passed_df, condition_df,multimappers_before_reads_count, before_filter_reads_count)
         # write the data to a json file
         with open(json_summary_path, 'w') as f:
             json.dump(json_data, f, indent = 4)
