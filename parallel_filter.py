@@ -30,7 +30,6 @@ Multimappers:
 Before applying the filtration process, if multiple loci exist for a given sample ID, the read with the maximum editing fraction will be selected. The editing fraction is calculated based on all MM, without considering quality checks.
 ----------------------------
 Parallel Processing:
-
 The CSV file will be divided into batches for parallel processing based on the number of threads. The size of each batch is determined as follows: int(num_of_reads / max_threads).
 If -b is set, will use the number specified as batch size.
 ----------------------------
@@ -97,28 +96,36 @@ parser.add_argument("-cl2l", "--min_cluster_length_ratio", dest ="min_cluster_le
 parser.add_argument("-id", "--sample_id",dest = "sample_id", required=False, type=str, default="sample", help="Sample ID.")
 parser.add_argument("-o", "--passed_output", dest ="passed_csv_path", type=str, required=False, default = "passed.csv", help="path to the read's passed output.")
 parser.add_argument("-O", "--detailed_condition_output", dest ="condition_analysis_path", type=str, required=False, default = "condition_analysis.csv", help="path to the read's csv file with all the condtions detailed output.")
+parser.add_argument("-M", "--motifs_output", dest ="motifs_analysis_path", type=str, required=False, default = "motifs_analysis.csv", help="path to the read's csv file with all the motifs (count of each nucleotide efore and after ES).")
 parser.add_argument("-j", "--json_summary", dest="json_path", type=str, required=False,default = "summary.json", help="path to the sample's summary json file.")
-parser.add_argument("-ot", "--output_types", dest="output_types", choices=["all", "passed", "analysis", "summary"], default="all", help="choose the type of output: 'all', 'passed', 'analysis', 'summary'")
+parser.add_argument("-ot", "--output_types", dest="output_types", choices=["all", "passed", "analysis","motifs", "summary"], default="all", help="choose the type of output: 'all', 'passed', 'analysis', 'motifs', 'summary'")
 
 # get arguments
 args = parser.parse_args()
 sample_clusters_csv = str(args.sample_clusters_csv).strip()
 passed_csv_path = str(args.passed_csv_path).strip()
 condition_analysis_path = str(args.condition_analysis_path).strip()
+motifs_csv_path =str(args.motifs_analysis_path).strip()
+bed_path = "bed_bed_file.bed"
 json_summary_path = str(args.json_path).strip()
 
 # parallel processing controling
 max_threads = args.threads
 user_batch_size = args.batch
+
 # output types -
 sample_id = args.sample_id
 out_passed = args.output_types == 'all' or args.output_types == 'passed'
 out_analysis = args.output_types == 'all' or args.output_types == 'analysis'
 out_json = args.output_types == 'all' or args.output_types == 'summary'
+out_motifs = args.output_types == 'all' or args.output_types == 'motifs'
+out_bed = True
 
 # INIT SCRIPT PARAMETERS
 # Initialize lists to store rows
 passed_reads_data = []
+motifs_data= []
+bed_file_data =[]
 condition_analysis_rows = []
 motif_location = ['upstream', 'downstream']
 
@@ -137,7 +144,7 @@ def sample_motif(nt_count_df, location, total_num_of_ES):
     return nt_precentage, nt_count
 
 #create json file summarizing key statistics of he passed rfeads
-def create_json(passed_df, condition_df,multimappers_count, unique_count):
+def create_json(passed_df, motifs_df, condition_df,multimappers_count, unique_count):
 
     # init general data dictonary 
     json_data = {"sample_id:": sample_id,"multimappers total reads before filtering:": multimappers_count, "uniquely total reads before filtering:": unique_count}
@@ -146,13 +153,13 @@ def create_json(passed_df, condition_df,multimappers_count, unique_count):
     json_data["number of passed reads:"] = int(condition_df['Passed_All'].sum())
 
     # average es number
-    average_num_of_ES = passed_df['number_of_passed_ES'].mean()
+    average_num_of_ES = passed_df['Number_of_Passed_ES'].mean()
     json_data["average number of ES:"] = average_num_of_ES
 
     # get sample ES motif
-    total_num_of_ES = passed_df['number_of_passed_ES'].sum()
+    total_num_of_ES = passed_df['Number_of_Passed_ES'].sum()
     for loc in motif_location:
-        nt_count_df = passed_df[[f'{loc}_{nt}' for nt in ['A', 'C', 'G', 'T']]]
+        nt_count_df = motifs_df[[f'{loc}_{nt}' for nt in ['A', 'C', 'G', 'T']]]
         nt_precentage, nt_count = sample_motif(nt_count_df, loc, total_num_of_ES)
         json_data[f'{loc}_motif_count:'] = nt_count
         json_data[f'{loc}_motif_percentage:'] = nt_precentage
@@ -179,7 +186,23 @@ def create_json(passed_df, condition_df,multimappers_count, unique_count):
 
     return json_data
 
-
+def parse_bed_row(read, passed_es_map):
+    genomic_blocks = ast.literal_eval(read.Genomic_Position_Splicing_Blocks_0based)
+    read_blocks = ast.literal_eval(read.Read_Relative_Splicing_Blocks_0based)
+    rows = []
+    for i, block in enumerate(read_blocks):
+        read_start, read_end = block[0], block[1]
+        genomic_start,genomic_end = genomic_blocks[i][0], genomic_blocks[i][1]
+        score = sum(1 for pos in passed_es_map if read_start <= pos < read_end)  # Count ES positions within the block
+        rows.append({
+            'chr': read.Chromosome,
+            'start': genomic_start,
+            'end': (genomic_end +1),
+            'name': read.Read_ID,
+            'score': score,
+            'strand':read.Strand
+        })  
+    return rows
 # count number of upstream + downstrean nt for each ES, returns a dictionary with the sum for each type of motif nt 
 def motifs_count(read_seq, editing_sites_map):
     es_positions = list(editing_sites_map.keys())
@@ -239,6 +262,7 @@ def process_reads(clusters_df):
             # !!!!!!!!!!!!!!! ALL OTHER CONDITIONS WILL BE CHECKED ONLY ON THE PASSED ES & MM !!!!!!!!!!!!!!!!!!
             num_of_passed_ES, passed_ES_map = filter_sites(editing_sites_map, args.min_phred_score)
             num_of_passed_MM, passed_MM_map = filter_sites(MM_sites_map, args.min_phred_score)
+            num_of_passed_MM += num_of_passed_ES
             min_phred_score_passed = True if num_of_passed_ES >= args.min_editing_sites else False
 
             # if no passed editing sites detected - continue to the next read
@@ -272,19 +296,25 @@ def process_reads(clusters_df):
             # if read passed all parameteres add a row to the passed_statisctics
             if passed_all_conditions and out_passed:
                 avg_phred_score, avg_es_distance= es_statistics(passed_ES_map)
-                motifs_count_data = motifs_count(read.Read_Sequence, passed_ES_map)
-                es_statistics_data = {'number_of_total_ES': total_num_of_ES,'number_of_passed_ES': num_of_passed_ES, 'number_of_passed_MM': num_of_passed_MM,'passed_ES_pos_to_phred_score_map': passed_ES_map, 'average_es_phred_score': avg_phred_score, 'average_adjacent_es_distance': avg_es_distance}
-                all_data = {"Read_ID": read[0]}
-                all_data.update({"mate": mate})
-                all_data.update(es_statistics_data)
-                all_data.update(motifs_count_data)
+                es_statistics_data = {'Number_of_Total_ES': total_num_of_ES,'Number_of_Passed_ES': num_of_passed_ES, 'Number_of_Passed_MM': num_of_passed_MM,'Editing_Fraction_Passed':editing_fraction,'Passed_ES_Pos_to_Phred_Score_Map': passed_ES_map, 'Average_ES_Phred_Score': avg_phred_score, 'Average_Adjacent_ES_Distance': avg_es_distance}
+                all_data = {**read._asdict(), **es_statistics_data} 
                 passed_reads_data.append(all_data)
+            # append details to the motifs file
+            if passed_all_conditions and out_motifs:
+                motifs_count_data = {"Read_ID": read.Read_ID}
+                motifs_count_data.update(motifs_count(read.Read_Sequence, passed_ES_map))
+                motifs_data.append(motifs_count_data)
+
+            if passed_all_conditions and out_bed:
+                bed_rows = parse_bed_row(read, passed_ES_map)
+                bed_file_data.extend(bed_rows)
+
             # append details to the condition_analysis file
             if out_analysis:
-                condition_analysis_rows.append([read[0]] + [passed_all_conditions] + [edited] + conditions_list)
+                condition_analysis_rows.append([read.Read_ID] + [passed_all_conditions] + [edited] + conditions_list)
 
         except Exception as e:
-            print(f"Error processing read {read[0]}: {e}")
+            print(f"Error processing read {read.Read_ID}: {e}")
             continue
 
 
@@ -324,8 +354,26 @@ def main():
     if(len(passed_reads_data) == 0):
         f = open(f'{sample_id}_no_passed_reads.txt', "w")
         sys.exit()
-    passed_df = pd.DataFrame(passed_reads_data)
+    
 
+    # create passed DF and change order of columns
+    passed_df = pd.DataFrame(passed_reads_data)
+    column_order = [
+    'Index', 'Read_ID', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length',
+    'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'cigar', 'flag',
+    'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based',
+    'Number_of_Total_ES', 'Number_of_Passed_ES', 'Number_of_total_MM', 'Number_of_Passed_MM',
+    'Editing_Fraction_Passed', 'Passed_ES_Pos_to_Phred_Score_Map', 'Average_ES_Phred_Score',
+    'Average_Adjacent_ES_Distance', 'A2C_MM', 'A2G_MM', 'A2T_MM', 'C2A_MM', 'C2G_MM',
+    'C2T_MM', 'G2A_MM', 'G2C_MM', 'G2T_MM', 'T2A_MM', 'T2C_MM', 'T2G_MM', 'Ref2N_MM',
+    'NtoAlt_MM'
+    ]
+    # Keep only the columns that exist in both the DataFrame and the specified order
+    filtered_columns = [col for col in column_order if col in passed_df.columns]
+    # Rearrange the columns in the DataFrame
+    passed_df = passed_df[filtered_columns]
+
+    # create condition df
     condition_header = [
         'Read_ID', 'Passed_All', 'Edited',
         'Min_Editing_Sites_' + str(args.min_editing_sites), 
@@ -335,15 +383,25 @@ def main():
         'Min_Cluster_Length_to_Read_Length_Ratio_' + str(args.min_cluster_length_ratio)
         ]
     condition_df = pd.DataFrame(condition_analysis_rows, columns=condition_header)
-
+    
+    motifs_df = pd.DataFrame(motifs_data)
     if out_passed:
         # Write all the rows to the passed CSV file
         passed_df.to_csv(passed_csv_path, index=False)
     if out_analysis:
         # Write all the rows to the condition_analysis CSV file
         condition_df.to_csv(condition_analysis_path, index=False)
+    if out_motifs:
+        # Write all the rows to the condition_analysis CSV file
+        motifs_df.to_csv(motifs_csv_path, index=False)
+    if out_bed:
+        # Create a new DataFrame for the BED file
+        bed_df = pd.DataFrame(bed_file_data)
+        # Save to a BED file
+        bed_df.to_csv(bed_path, sep='\t', header=False, index=False)
+    
     if out_json:
-        json_data = create_json(passed_df, condition_df,multimappers_before_reads_count, before_filter_reads_count)
+        json_data = create_json(passed_df,motifs_df, condition_df,multimappers_before_reads_count, before_filter_reads_count)
         # write the data to a json file
         with open(json_summary_path, 'w') as f:
             json.dump(json_data, f, indent = 4)
