@@ -96,9 +96,10 @@ parser.add_argument("-cl2l", "--min_cluster_length_ratio", dest ="min_cluster_le
 parser.add_argument("-id", "--sample_id",dest = "sample_id", required=False, type=str, default="sample", help="Sample ID.")
 parser.add_argument("-o", "--passed_output", dest ="passed_csv_path", type=str, required=False, default = "passed.csv", help="path to the read's passed output.")
 parser.add_argument("-O", "--detailed_condition_output", dest ="condition_analysis_path", type=str, required=False, default = "condition_analysis.csv", help="path to the read's csv file with all the condtions detailed output.")
-parser.add_argument("-M", "--motifs_output", dest ="motifs_analysis_path", type=str, required=False, default = "motifs_analysis.csv", help="path to the read's csv file with all the motifs (count of each nucleotide efore and after ES).")
+parser.add_argument("-M", "--motifs_output", dest ="motifs_analysis_path", type=str, required=False, default = "motifs_analysis.csv", help="path to the output csv file with each read's motifs (count of each nucleotide before and after ES).")
+parser.add_argument("-B", "--bed_output", dest ="BED_clusters_path", type=str, required=False, default = "HE_clusters.bed", help="path to the output BED file.")
 parser.add_argument("-j", "--json_summary", dest="json_path", type=str, required=False,default = "summary.json", help="path to the sample's summary json file.")
-parser.add_argument("-ot", "--output_types", dest="output_types", choices=["all", "passed", "analysis","motifs", "summary"], default="all", help="choose the type of output: 'all', 'passed', 'analysis', 'motifs', 'summary'")
+parser.add_argument("-ot", "--output_types", dest="output_types", choices=["all", "passed", "analysis","motifs", "bed", "summary"], default="all", help="choose the type of output: 'all', 'passed', 'analysis', 'motifs', 'bed',  'summary'")
 
 # get arguments
 args = parser.parse_args()
@@ -106,7 +107,7 @@ sample_clusters_csv = str(args.sample_clusters_csv).strip()
 passed_csv_path = str(args.passed_csv_path).strip()
 condition_analysis_path = str(args.condition_analysis_path).strip()
 motifs_csv_path =str(args.motifs_analysis_path).strip()
-bed_path = "bed_bed_file.bed"
+bed_path=str(args.BED_clusters_path).strip()
 json_summary_path = str(args.json_path).strip()
 
 # parallel processing controling
@@ -119,7 +120,7 @@ out_passed = args.output_types == 'all' or args.output_types == 'passed'
 out_analysis = args.output_types == 'all' or args.output_types == 'analysis'
 out_json = args.output_types == 'all' or args.output_types == 'summary'
 out_motifs = args.output_types == 'all' or args.output_types == 'motifs'
-out_bed = True
+out_bed = args.output_types == 'all' or args.output_types == 'bed'
 
 # INIT SCRIPT PARAMETERS
 # Initialize lists to store rows
@@ -335,18 +336,19 @@ def main():
     clusters_df = clusters_df.loc[clusters_df.groupby('Read_ID')['Editing_Fraction'].idxmax()]
     before_filter_reads_count = clusters_df.shape[0]
 
-    if (user_batch_size and (user_batch_size > 0)):
-        batch_size = user_batch_size
-    else:
-        batch_size = int(before_filter_reads_count / max_threads)
-    # Split the DataFrame into smaller batches
-    batches = [clusters_df.iloc[i:i + batch_size] for i in range(0, len(clusters_df), batch_size)]
+    if (before_filter_reads_count > 0):
+        if (user_batch_size and (user_batch_size > 0)):
+            batch_size = user_batch_size
+        else:
+            batch_size = int(before_filter_reads_count / max_threads)
+        # Split the DataFrame into smaller batches
+        batches = [clusters_df.iloc[i:i + batch_size] for i in range(0, len(clusters_df), batch_size)]
 
-    # Use ThreadPoolExecutor to parallelize processing
-    with ThreadPoolExecutor(max_workers=max_threads) as executor:  
-        futures = [executor.submit(process_reads, batch) for batch in batches]
-        for future in as_completed(futures):
-            future.result()  # Ensure that exceptions are raised
+        # Use ThreadPoolExecutor to parallelize processing
+        with ThreadPoolExecutor(max_workers=max_threads) as executor:  
+            futures = [executor.submit(process_reads, batch) for batch in batches]
+            for future in as_completed(futures):
+                future.result()  # Ensure that exceptions are raised
 
     
     # WRITE OUTPUT

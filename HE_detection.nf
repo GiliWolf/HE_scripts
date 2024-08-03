@@ -17,7 +17,7 @@ process INDEX_BAM {
 
         """
         samtools sort -o ${sorted_bam_path} ${bam_file}
-        samtools index -@ 16 ${sorted_bam_path}
+        samtools index -@ ${params.index_threads} ${sorted_bam_path}
         COUNT=\$(samtools view -c ${sorted_bam_path})
         """ 
 }
@@ -61,10 +61,12 @@ process FILTER {
         // stdout
     script:
         filtered_output_path = "${sample_id}${params.file_seperator}passed.csv"
+        motifs_output_path = "${sample_id}${params.file_seperator}motifs.csv"
+        bed_output_path = "${sample_id}${params.file_seperator}es.bed"
         analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
         summary_output_path = "${sample_id}${params.file_seperator}summary.json"
     """
-    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -b ${params.filter_batch_size} -ot ${params.filter_output_types} -es ${params.min_editing_sites} -ef ${params.min_editing_fraction} -ps ${params.min_phred_score} -es2l ${params.min_es_length_ratio} -cl2l ${params.min_cluster_length_ratio}
+    ${params.python_command} ${filter_python_script} -i ${file} -id ${sample_id} -o ${filtered_output_path} -O ${analysis_output_path} -M ${motifs_output_path} -B ${bed_output_path} -j ${summary_output_path} -t ${params.max_filter_threads} -b ${params.filter_batch_size} -ot ${params.filter_output_types} -es ${params.min_editing_sites} -ef ${params.min_editing_fraction} -ps ${params.min_phred_score} -es2l ${params.min_es_length_ratio} -cl2l ${params.min_cluster_length_ratio}
     """
 }
 
