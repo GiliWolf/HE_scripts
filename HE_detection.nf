@@ -214,7 +214,7 @@ process REMOVE_JSONS {
 //     }
 // }
 
-workflow main_wf {
+workflow HE_DETECTION {
     take:
         samples_ch
     
@@ -259,5 +259,5 @@ workflow {
             .set {samples_ch}
     }
 
-    main_wf(samples_ch)
+    HE_DETECTION(samples_ch)
 }

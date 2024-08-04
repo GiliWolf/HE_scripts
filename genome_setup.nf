@@ -1,4 +1,4 @@
-/*
+"""
 author: Gili Wolf 29-11-2023
 ---------------------------------------
 HE-GENOME SETUP:
@@ -8,13 +8,10 @@ this scripts:
     2.   create genome indexes by using STAR --runMode genomeGenerate.
 As part of the HyperEditing tool, this is the pre-setup to further analysis in the 2nd mapping stage. 
 
-usage: nextflow genome_setup.nf -c genome_setup.nf.config
+usage: 
+nextflow genome_setup.nf -c genome_setup.nf.config --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir <PATH_TO_OUTOUT_DIR>
 
-Key paramteres:
-ref_base: refernce base to be transformed
-alt_base: alternative base to be writen instead of <ref_base>
-genome_fasta: path to the genome fasta file to be modified
-*/
+"""
 
 bases=['A','G','C','T']
 
@@ -44,7 +41,7 @@ log.info"""
 process TRANSFORM {
     tag "${ref_base} >> ${alt_base}"
     maxForks 5
-    publishDir "${params.transform_output_dir}", pattern: '*.{fa,fasta}', mode: 'copy'
+    publishDir "${params.transform_genome_output_dir}", pattern: '*.{fa,fasta}', mode: 'copy'
 
     input:
         each ref_base
@@ -138,6 +135,19 @@ process INDEX() {
 
 }
 
+workflow GENOME_SETUP {
+    take: 
+        genome_ch
+    main:
+        // 12 transformation of the genome
+        TRANSFORM(bases,bases,genome_ch)
+    
+        // indexing of the 12 transformed genomes
+        INDEX(TRANSFORM.out[1])
+    emit:
+        INDEX.out[1]
+}
+
 
 workflow {
     // genome fasta channel
@@ -145,11 +155,7 @@ workflow {
         .fromPath(params.genome_fasta, checkIfExists: true)
         .set {genome_ch}
     
-    // 12 transformation of the genome
-    TRANSFORM(bases,bases,genome_ch)
-  
-    // indexing of the 12 transformed genomes
-    INDEX(TRANSFORM.out[1])
+    GENOME_SETUP(genome_ch)
 }   
 
 

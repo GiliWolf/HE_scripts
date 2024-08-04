@@ -10,7 +10,7 @@ Description:
     Similar to the original pipeline, the process involves aligning the samples to the original genome, then transforming the unmapped reads and mapping them again to the transformed genome. Finally, the second mapped reads are retransformed to their original sequence.
 
 Usage: 
-    nextflow -c PWD/pre_anylis.nf.config run PWD/pre_anlysis.nf
+    nextflow -c PWD/pre_anylis.nf.config run PWD/pre_anlysis.nf --reads_dir <PATH_TO_FASTQ> --outdir <PATH_TO_OUTPUT_DIR>
 
 Dependencies (using Docker containers):
    - STAR aligner (version 2.7.10b)
@@ -30,7 +30,10 @@ Disclaimer: This script is provided as-is without any warranty. Use at your own 
 */
 params.help=false
 
-log.info'''
+bases=['A','G','C','T']
+
+def helpMessage() {
+    log.info '''
         HYPER-EDITING PRE-ANALYSIS:
         ===========================
         1. preprocess reads using fastp
@@ -38,15 +41,12 @@ log.info'''
         3. 12 transformation of the *unmapped* reads 
         4. 2nd STAR map: maping tranformed reads to fitted transformed genome
         5. retransform the *mapped* reads
-        '''
-bases=['A','G','C','T']
-
-def helpMessage() {
-    log.info '''
+        ===========================
         usage: nextflow -c pre_anylis.nf.config [options...] run pre_anlysis.nf
         * for running in baskground:
           nohup nextflow -c pre_anylis.nf.config [options...] -bg run pre_anlysis.nf &
-        * for help message: nextflow -c run pre_anlysis.nf --help
+        * for help message:
+          nextflow -c run pre_anlysis.nf --help
 
         options:
         ---------------
@@ -509,7 +509,8 @@ workflow pair_end {
         // files_to_retransform_ch.view()
         retransform_ch = RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
 
-    // emit:
+    emit:
+        retransform_ch
 }
 
 workflow single_end {
@@ -561,6 +562,33 @@ workflow single_end {
         files_to_retransform_ch.view()
         retransform_ch = RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
 
+    emit:
+        retransform_ch
+
+}
+
+workflow PRE_ANALYSIS {
+    take:
+        samples_ch
+
+    main:
+
+    Channel
+        .of(['A','C'],['A','G'],['A','T'],['C','A'],['C','G'],['C','T'],['G','A'],['G','C'],['G','T'],['T','A'],['T','C'],['T','G'])
+        .set {bases_combination_ch}
+
+    Channel
+        .fromPath(params.transformed_indexes, type: 'dir')
+        .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
+        .groupTuple(by: 0)
+        .set {transformed_index_ch}
+
+
+    if (params.pair_end == 0)  
+        single_end(samples_ch, bases_combination_ch, transformed_index_ch)
+    else
+        pair_end(samples_ch, bases_combination_ch, transformed_index_ch)
+    
 
 }
 
@@ -569,7 +597,7 @@ workflow {
 
     if(params.help){
         helpMessage()
-        System.exit(1)
+        System.exit()
     }
 
     /*
@@ -587,22 +615,7 @@ workflow {
     else             // raise error if pair_end flag != 0/1
         error "----------------\n error: pair_end flag must be 0/1\n----------------"
     
-    //
-    Channel
-        .of(['A','C'],['A','G'],['A','T'],['C','A'],['C','G'],['C','T'],['G','A'],['G','C'],['G','T'],['T','A'],['T','C'],['T','G'])
-        .set {bases_combination_ch}
-    //
-    Channel
-        .fromPath(params.transformed_indexes, type: 'dir')
-        .map {file -> tuple(file.name.toString().tokenize(params.file_seperator).get(0), file)}
-        .groupTuple(by: 0)
-        .set {transformed_index_ch}
-
-
-    if (params.pair_end == 0)  
-        single_end(samples_ch, bases_combination_ch, transformed_index_ch)
-    else
-        pair_end(samples_ch, bases_combination_ch, transformed_index_ch)
+    PRE_ANALYSIS(samples_ch)
 
 }
 

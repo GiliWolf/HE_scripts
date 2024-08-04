@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Define variables
-tissue="MuscleSkeletal"
+tissue="BrainCerebellum"
 original_tool_dir="/private9/Projects/dsRNAProject/HE/${tissue}/UEdetect.PE_0.05_0.6_30_0.6_0.1_0.8_0.2"
-new_tool_dir="/private10/Projects/Gili/HE_workdir/detection/GTEX_Multimappers_reports_afte_change/${tissue}/filtered_clusters"
+new_tool_dir="/private10/Projects/Gili/HE_workdir/detection/GTEX_Multimappers_All/${tissue}/filtered_clusters"
 output_dir="/private10/Projects/Gili/HE_workdir/HE_compare/${tissue}"
 
 # """
