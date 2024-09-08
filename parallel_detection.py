@@ -3,7 +3,7 @@ import pysam
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
 import argparse
-import threading
+
 """
 Author: Gili Wolf
 Date: 02-03-2024
@@ -64,8 +64,7 @@ usage: detect_clusters.py [-h] -i BAM_PATH -g FASTA_PATH -o OUTPUT_PATH -rb REF_
                         'Position','Alignment_length','Read_Sequence', 'Reference_Sequence','Number_of_MM', 'Number_of_Editing_Sites')
  
 """
-# init lock for mutexing the reading of the FASTA file 
-fasta_lock = threading.Lock()
+
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="This script is designed to analyze and detect the editing events from the overall general mismatches events.")
@@ -162,7 +161,7 @@ def get_read_blocks(genomic_blocks):
 """
 process read to extract data for the output file
 """
-def process_read(read, fasta_file, bam_file):
+def process_read(read, fasta_file):
     try:
     # keep track of all MM detected in the read
         detected_MM_map = {key: [] for key in mm_col_names}
@@ -170,7 +169,7 @@ def process_read(read, fasta_file, bam_file):
         if not read.is_unmapped:
             # BASIC INFO:
             # Get the read's mapped region coordinates 
-            chromosome = bam_file.get_reference_name(read.reference_id)  # chromosome name
+            chromosome = read.reference_name  # chromosome name
             position = read.reference_start  # start position of the allignment
             
             # Extract the sequence from the genome:
@@ -181,8 +180,7 @@ def process_read(read, fasta_file, bam_file):
             #   1. extract refrence sequence using block[0](start position) and block[1](end position)
             #   2. extract read_relative_splicing_blocks  - how the read is being splices based on read's positions
             read_blocks = []
-            with fasta_lock:
-                reference_sequence = "".join([fasta_file.fetch(chromosome, block[0], block[1]).upper() for block in genomic_blocks])
+            reference_sequence = "".join([fasta_file.fetch(chromosome, block[0], block[1]).upper() for block in genomic_blocks])
             read_blocks = get_read_blocks(genomic_blocks)
             
             allignment_length = len(reference_sequence)
@@ -258,11 +256,14 @@ def process_read(read, fasta_file, bam_file):
 """
 process each batch of reads
 """
-def process_reads_batch(reads, fasta_file, bam_file):
+def process_reads_batch(reads):
     rows = []
+    # Open the FASTA genome file
+    fasta_file = pysam.FastaFile(fasta_path, filepath_index=fasta_index_path)
     for read in reads:
-        row = process_read(read, fasta_file, bam_file)
+        row = process_read(read, fasta_file)
         rows.append(row)
+    fasta_file.close()
     return rows
 
 def main():
@@ -271,7 +272,7 @@ def main():
     bam_file = pysam.AlignmentFile(bam_path, "rb", index_filename=bam_index_path)
 
     # Open the FASTA genome file
-    fasta_file = pysam.FastaFile(fasta_path, filepath_index=fasta_index_path)
+    #fasta_file = pysam.FastaFile(fasta_path, filepath_index=fasta_index_path)
 
     # Keep all the rows to be written at the end of the iteration
     rows = []
@@ -292,7 +293,7 @@ def main():
 
     # Use ThreadPoolExecutor to parallelize processing
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = [executor.submit(process_reads_batch, batch, fasta_file, bam_file) for batch in batches]
+        futures = [executor.submit(process_reads_batch, batch) for batch in batches]
         for future in as_completed(futures):
             rows.extend(future.result())
 
@@ -310,7 +311,7 @@ def main():
 
     # Close all of the files
     bam_file.close()
-    fasta_file.close()
+    
 
 if __name__ == "__main__":
     main()
