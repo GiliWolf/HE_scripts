@@ -21,6 +21,20 @@ process INDEX_BAM {
         COUNT=\$(samtools view -c ${sorted_bam_path})
         """ 
 }
+
+process COUNT_RECORDS {
+        tag "count_records: ${sample_id}"
+    input:
+        tuple val(base_comb), val(sample_id), path(bam_file), path(index_bam_file)
+    output:
+        tuple val(base_comb), val(sample_id), path(bam_file), path(index_bam_file), env(COUNT)
+    
+    script:
+
+        """
+        COUNT=\$(samtools view -c ${bam_file})
+        """ 
+}
 process DETECT {
         maxForks 3
         tag "detection: ${base_comb} -  ${sample_id}"
@@ -62,7 +76,7 @@ process FILTER {
     script:
         filtered_output_path = "${sample_id}${params.file_seperator}passed.csv"
         motifs_output_path = "${sample_id}${params.file_seperator}motifs.csv"
-        bed_output_path = "${sample_id}${params.file_seperator}es.bed"
+        bed_output_path = "${sample_id}${params.file_seperator}clusters.bed"
         analysis_output_path = "${sample_id}${params.file_seperator}condition_analysis.csv"
         summary_output_path = "${sample_id}${params.file_seperator}summary.json"
     """
@@ -189,40 +203,21 @@ process REMOVE_JSONS {
 
 }
 
-// workflow independent{
-
-//     def base_comb="${params.ref_base}2${params.alt_base}"
-
-//     Channel
-//             .fromPath(params.HE_reads, checkIfExists: true)
-//             .map {file -> tuple (base_comb,file.baseName, file)}
-//             .set {samples_ch}
-
-//     index_ch = INDEX_BAM(samples_ch)
-
-//     detecter_clusters_ch = DETECT(index_ch, params.fasta_path, params.detect_python_script)
-    
-//     if (!params.no_filter){
-//         after_filter_ch = FILTER(detecter_clusters_ch, params.filter_python_script)
-//     }
-
-//     if (params.grid_search){
-//         grid_search_ch = GRID_SEARCH(detecter_clusters_ch, params.GS_filter_script, params.grid_search_python_script)
-//         merged_ch = MERGE_GRID_OUTPUT(grid_search_ch)
-//         files_to_remove = grid_search_ch.map {tuple -> tuple[1]}.filter (~/.*\.json$/)
-//         REMOVE_JSONS(files_to_remove)
-//     }
-// }
 
 workflow HE_DETECTION {
     take:
         samples_ch
     
-    main: 
-        index_ch = INDEX_BAM(samples_ch) 
+    main:
+        if (params.index){
+            index_ch = INDEX_BAM(samples_ch) 
+            detected_clusters_ch = DETECT(index_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
+        }
+        else {
+            samples_ch = COUNT_RECORDS(samples_ch)
+            detected_clusters_ch = DETECT(samples_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
+        }
 
-        detected_clusters_ch = DETECT(index_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
-        
         if (!params.no_filter){
             after_filter_ch = FILTER(detected_clusters_ch, params.filter_python_script)
         }
@@ -246,18 +241,22 @@ workflow {
             .set {bases_combination_ch}
 
         Channel
-            .fromPath(params.HE_reads, checkIfExists: true)
-            .map {file -> tuple (file.baseName, file)}
+            .fromPath(params.HE_reads_independent, checkIfExists: true)
+            .map {file -> tuple (file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
+            .groupTuple(by: 0, sort:true)
+            .map {tuple -> tuple.flatten()}
             .set {files_ch}
         
         samples_ch = bases_combination_ch.combine(files_ch)
+        samples_ch.view()
     }
     else {
         Channel
             .fromPath(params.HE_reads, checkIfExists: true)
-            .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.baseName, file)}
+            .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
+            .groupTuple(by: [0,1], sort:true)
+            .map {tuple -> tuple.flatten()}
             .set {samples_ch}
     }
-
     HE_DETECTION(samples_ch)
 }

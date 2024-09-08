@@ -416,18 +416,16 @@ process SECOND_STAR_MAP{
 */
 process RETRANSFORM {
         tag "re-transform: ${sample_id} : ${base_comb}"
-        publishDir "${params.retransform_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
-
+        //publishDir "${params.retransform_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
     input:
         tuple val(sample_id), path(original_reads), val(base_comb), path(bam_file)
         path(python_script)
 
     output:
-        path('*'), optional: true
+        tuple val(base_comb), val(sample_id), path('*.bam'),optional: true
 
-    // python re-transform.py -s <sam_file> -o <output_path> -i <original_fastq_path> [-I <original_fastq_path_2>] <pair_end[0/1]>
     script:
-        outout_path = "${base_comb}${params.file_seperator}${sample_id}${params.file_seperator}re-transformed.bam"
+        outout_path = "${base_comb}${params.file_seperator}${sample_id}.bam"
         if (params.pair_end == 0)   //SE
             """
             ${params.python_command} ${python_script} -s ${bam_file} -o ${outout_path} -i ${original_reads} -pe ${params.pair_end}
@@ -440,6 +438,28 @@ process RETRANSFORM {
 
 }
 
+/*
+* This process indexes the BAM files
+*/
+process INDEX_BAM {
+        maxForks 1
+        tag "index: ${sample_id}"
+        publishDir "${params.retransform_output_dir}/${base_comb}", pattern: '*', mode: 'copy'
+
+    input:
+        tuple val(base_comb), val(sample_id), path(bam_file)
+
+    output:
+        tuple val(base_comb), val(sample_id), path(sorted_bam_path), path("*.bai")
+
+    script:
+        sorted_bam_path = "${bam_file.baseName}.bam"
+
+        """
+        samtools sort -o ${sorted_bam_path} ${bam_file}
+        samtools index -@ ${params.index_threads} ${sorted_bam_path}
+        """ 
+}
 
 workflow pair_end {
     take:
@@ -451,15 +471,6 @@ workflow pair_end {
         FASTP(samples_ch)
         fastp_ch = FASTP.out[0].collect()
 
-        // if ( params.flag ) {
-        // bar()
-        // omega_ch = bar.out
-        // }
-        // else {
-        //     foo()
-        //     omega_ch = foo.out
-        // }
-        //
         FIRST_STAR_MAP(fastp_ch, params.genome_index_dir)
         FIRST_STAR_MAP.out.fastqs
                         .flatten()
@@ -490,27 +501,13 @@ workflow pair_end {
                                 file.name.toString().tokenize(params.file_seperator)[-2],
                                 file)} 
         
-        // Channel
-        //     .fromPath("/private10/Projects/Gili/HE_workdir/first_part/GTEX/MuscleSkeletal_PE/second_map/**/*_Aligned.out*")
-        //     .collect()
-        //     .flatten()
-        //     .map { file -> tuple(
-        //                         file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
-        //                         file.name.toString().tokenize(params.file_seperator)[-2],
-        //                         file)} 
-        //     .set{mapped_transformed_ch}
-        // Channel
-        //     .fromFilePairs(params.PE_original_reads)
-        //     .set {originial_reads_ch}
-        //
-        // unmapped_reads_ch.view()
-        // mapped_transformed_ch.view()
+
         files_to_retransform_ch = unmapped_reads_ch.combine(mapped_transformed_ch, by:0)
-        // files_to_retransform_ch.view()
         retransform_ch = RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
 
+        index_ch = INDEX_BAM(retransform_ch)
     emit:
-        retransform_ch
+        index_ch
 }
 
 workflow single_end {
@@ -552,18 +549,18 @@ workflow single_end {
                                 file.name.toString().split(/_[A-Z]2[A-Z]_/)[0],
                                 file.name.toString().tokenize(params.file_seperator)[-2],
                                 file)} 
-        //
-        Channel
-            .fromPath(params.original_reads)
-            .map {file -> tuple(file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
-            .set {originial_reads_ch}
-        //
-        files_to_retransform_ch = originial_reads_ch.combine(mapped_transformed_ch, by:0)
-        files_to_retransform_ch.view()
+        // //
+        // Channel
+        //     .fromPath(params.original_reads)
+        //     .map {file -> tuple(file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
+        //     .set {originial_reads_ch}
+        // //
+        files_to_retransform_ch = unmapped_reads_ch.combine(mapped_transformed_ch, by:0)
         retransform_ch = RETRANSFORM(files_to_retransform_ch, params.retransform_python_script)
 
+        index_ch = INDEX_BAM(retransform_ch)
     emit:
-        retransform_ch
+        index_ch
 
 }
 
@@ -585,10 +582,12 @@ workflow PRE_ANALYSIS {
 
 
     if (params.pair_end == 0)  
-        single_end(samples_ch, bases_combination_ch, transformed_index_ch)
+        output_ch = single_end(samples_ch, bases_combination_ch, transformed_index_ch)
     else
-        pair_end(samples_ch, bases_combination_ch, transformed_index_ch)
+        output_ch = pair_end(samples_ch, bases_combination_ch, transformed_index_ch)
     
+    emit:
+        output_ch
 
 }
 

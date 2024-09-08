@@ -14,28 +14,28 @@ nextflow genome_setup.nf -c genome_setup.nf.config --genome_fasta <PATH_TO_GENOM
 """
 
 bases=['A','G','C','T']
+def helpMessage() {
+    log.info"""
+            HYPER-EDITING GENOME-SETUP
+            ==========================
+            transform and index ${params.genome_fasta} 12 times as follows:
+            a->g
+            a->c
+            a->t
 
-log.info"""
-        HYPER-EDITING GENOME-SETUP
-        ==========================
-        transform and index ${params.genome_fasta} 12 times as follows:
-        a->g
-        a->c
-        a->t
+            g->a
+            g->c
+            g->t
 
-        g->a
-        g->c
-        g->t
+            c->a
+            c->g
+            c->t
 
-        c->a
-        c->g
-        c->t
-
-        t->a
-        t->g
-        t->c
-""".stripIndent()
-
+            t->a
+            t->g
+            t->c
+    """.stripIndent()
+}
 // transform refrence bases to alternative bases in the fasta files into a new file
 // in generic_transform/transformed_genome
 process TRANSFORM {
@@ -50,7 +50,7 @@ process TRANSFORM {
     
     output:
         stdout
-        path('*.fa')
+        path('*.{fa,fasta}')
 
 
     // condition: don't transform if refrence base and alterantive base are the same
@@ -150,6 +150,10 @@ workflow GENOME_SETUP {
 
 
 workflow {
+    if(params.help){
+        helpMessage()
+        System.exit()
+    }
     // genome fasta channel
     Channel
         .fromPath(params.genome_fasta, checkIfExists: true)

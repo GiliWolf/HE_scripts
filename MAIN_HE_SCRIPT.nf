@@ -3,7 +3,7 @@ include { GENOME_SETUP } from '/private10/Projects/Gili/HE_workdir/HE_scripts/ge
 include { PRE_ANALYSIS } from '/private10/Projects/Gili/HE_workdir/HE_scripts/pre_analysis_divided_wf.nf'
 include { HE_DETECTION } from '/private10/Projects/Gili/HE_workdir/HE_scripts/HE_detection.nf'
 // TRANSFORM: 
-// ./nextflow HE_scripts/MAIN_HE_SCRIPT.nf -c HE_scripts/MAIN_HE_SCRIPT.nf.config --run_mode {transform | search | detect | search-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir MAIN_tests/genome_setup] | [SEARCH: --reads_dir first_part/test_samples/small_GTEX/small_Artery --outdir MAIN_tests/pre_analysis --genome_index_dir genome_setup/hg38_index --transform_genome_dir genome_setup/generic_transform/hg38transform] | [DETECT: --detect_input_dir <PATH_TO_SEARCH_OUTPUT_DIR> --detect_outdir MAIN_tests/detect]
+// ./nextflow HE_scripts/MAIN_HE_SCRIPT.nf -c HE_scripts/MAIN_HE_SCRIPT.nf.config --run_mode {transform | search | detect | search-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir MAIN_tests/genome_setup] | [SEARCH: --reads_dir <READS_FATQ_PATH> --outdir MAIN_tests/pre_analysis --genome_index_dir genome_setup/hg38_index --transform_genome_dir genome_setup/generic_transform/hg38transform --pair_end {0,1}] | [DETECT: --detect_input_dir <PATH_TO_SEARCH_OUTPUT_DIR> --detect_outdir MAIN_tests/detect --fasta_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa --fasta_index_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa.fai"]
 
 def helpMessage() {
     log.info '''
@@ -44,24 +44,27 @@ workflow search {
 workflow detect {
     main: 
         if (params.independent){
-                def base_comb="${params.ref_base}2${params.alt_base}"
-                Channel
-                    .fromList(['A2C', 'A2G', 'A2T', 'C2A', 'C2G', 'C2T', 'G2A', 'G2C', 'G2T', 'T2A', 'T2C', 'T2G'])
-                    .set {bases_combination_ch}
+            def base_comb="${params.ref_base}2${params.alt_base}"
+            Channel
+                .fromList(['A2C', 'A2G', 'A2T', 'C2A', 'C2G', 'C2T', 'G2A', 'G2C', 'G2T', 'T2A', 'T2C', 'T2G'])
+                .set {bases_combination_ch}
 
-                Channel
-                    .fromPath(params.HE_reads, checkIfExists: true)
-                    .map {file -> tuple (file.baseName, file)}
-                    .set {files_ch}
-                
-                samples_ch = bases_combination_ch.combine(files_ch)
-            }
-            else {
-                Channel
-                    .fromPath(params.HE_reads, checkIfExists: true)
-                    .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.baseName, file)}
-                    .set {samples_ch}
+            Channel
+                .fromPath(params.HE_reads, checkIfExists: true)
+                .map {file -> tuple (file.baseName, file)}
+                .set {files_ch}
+            
+            samples_ch = bases_combination_ch.combine(files_ch)
         }
+        else {
+            Channel
+                .fromPath(params.HE_reads, checkIfExists: true)
+                .map {file -> tuple (file.name.toString().tokenize(params.file_seperator).get(0),file.name.toString().tokenize(params.suffix_seperator).get(0), file)}
+                .groupTuple(by: [0,1], sort:true)
+                .map {tuple -> tuple.flatten()}
+                .set {samples_ch}
+        }
+        samples_ch = COUNT_RECORDS(samples_ch)
         HE_DETECTION(samples_ch)
 }
 

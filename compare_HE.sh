@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define variables
-tissue="BrainCerebellum"
+tissue="WholeBlood"
 original_tool_dir="/private9/Projects/dsRNAProject/HE/${tissue}/UEdetect.PE_0.05_0.6_30_0.6_0.1_0.8_0.2"
 new_tool_dir="/private10/Projects/Gili/HE_workdir/detection/GTEX_Multimappers_All/${tissue}/filtered_clusters"
 output_dir="/private10/Projects/Gili/HE_workdir/HE_compare/${tissue}"
@@ -9,9 +9,9 @@ output_dir="/private10/Projects/Gili/HE_workdir/HE_compare/${tissue}"
 # """
 # for each sub directory:
 # 1 - extract name and save it as "base_comb"
-# 2 - get all files in the sub dir that ends with 'passed.csv'
+# 2 - get all files in the sub dir that ends with '_es.bed'
 # for each file:
-#     a - extract sample id by removing "[A-Z]2[A-Z]_" prefix and "_re-transformed_passed.csv" suffix
+#     a - extract sample id by removing "[A-Z]2[A-Z]_" prefix and "_re-transformed_es.bed" suffix
 #     b - find the original file in the original_tool_dir by the pattern: $original_tool_dir/$sample_ID.UE.bed_files/$base_comb.bed
 #     c - run : bedtools intersect -a $file -b $original_file -v > ${base_comb}_${sample_id_compare}.bed
 # """

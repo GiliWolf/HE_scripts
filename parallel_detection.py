@@ -196,6 +196,10 @@ def process_read(read, fasta_file, bam_file):
             # get strand orientation - +: forward, -: reverse
             strand = '-' if read.is_reverse else '+'
 
+            # get read's flag and extraxt is mate1/mate2:
+            sam_flag = read.flag
+            mate = 2 if (sam_flag & 128) else 1
+
             # initilize MM parameters:
             num_of_mm = 0 # total MM
             num_of_editing_sites = 0 # editing sites (based on the current file base combination)
@@ -214,15 +218,14 @@ def process_read(read, fasta_file, bam_file):
                             num_of_editing_sites+=1
 
                 row = [
-                    read.query_name, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
+                    read.query_name, mate, chromosome, strand, position, allignment_length, read_sequence, reference_sequence,
                     num_of_mm, num_of_editing_sites
                 ]
             else:
                 # ADDITIONAL
                 cigar = read.cigarstring
                 quality = read.query_alignment_qualities
-                flag = read.flag
-        
+
                 editing_sites = {} # map : (position: quality)
 
                 # visualization of the allignment - '*': editing site, 'X': other MM, '|': match.
@@ -243,7 +246,7 @@ def process_read(read, fasta_file, bam_file):
 
                 # append the parameters to the CSV file rows:
                 row = [
-                    read.query_name, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, flag, genomic_blocks, read_blocks, num_of_editing_sites, num_of_mm, editing_sites, all_MM
+                    read.query_name, mate, chromosome, strand, position, allignment_length, read_sequence,visualize_allignment, reference_sequence, cigar, sam_flag, genomic_blocks, read_blocks, num_of_editing_sites, num_of_mm, editing_sites, all_MM
                 ]
                 # Convert the detected_MM_map dictionary into a list of its values and append it to the row
                 row.extend([detected_MM_map[col_name] for col_name in mm_col_names])
@@ -297,9 +300,9 @@ def main():
     with open(output_path, 'w', newline='') as output_file:
         csv_writer = csv.writer(output_file, csv.QUOTE_MINIMAL)
         if output_columns == "basic": # basic columns
-            header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Reference_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites']
+            header = ['Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Reference_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites']
         else: # all columns
-            header = ['Read_ID', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based', 'Number_of_Editing_Sites', 'Number_of_total_MM', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
+            header = ['Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based', 'Number_of_Editing_Sites', 'Number_of_total_MM', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
             header.extend(mm_col_names)
             
         csv_writer.writerow(header)

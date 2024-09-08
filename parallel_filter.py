@@ -130,6 +130,8 @@ bed_file_data =[]
 condition_analysis_rows = []
 motif_location = ['upstream', 'downstream']
 
+
+# HELPER FUNCIONS
 # True if consition passed, False if did not
 def check_Condition(value, threshold):
     return value >= threshold
@@ -144,7 +146,7 @@ def sample_motif(nt_count_df, location, total_num_of_ES):
         nt_count[nt] = total_nt_count
     return nt_precentage, nt_count
 
-#create json file summarizing key statistics of he passed rfeads
+# create json file summarizing key statistics of HE passed reads
 def create_json(passed_df, motifs_df, condition_df,multimappers_count, unique_count):
 
     # init general data dictonary 
@@ -187,20 +189,36 @@ def create_json(passed_df, motifs_df, condition_df,multimappers_count, unique_co
 
     return json_data
 
+# create a bed line of the HE clusters (the genomic interval of the closest editing sites)
 def parse_bed_row(read, passed_es_map):
     genomic_blocks = ast.literal_eval(read.Genomic_Position_Splicing_Blocks_0based)
     read_blocks = ast.literal_eval(read.Read_Relative_Splicing_Blocks_0based)
     rows = []
     for i, block in enumerate(read_blocks):
-        read_start, read_end = block[0], block[1]
-        genomic_start,genomic_end = genomic_blocks[i][0], genomic_blocks[i][1]
-        score = sum(1 for pos in passed_es_map if read_start <= pos < read_end)  # Count ES positions within the block
+        block_start, block_end = block[0], block[1]
+        genomic_start = genomic_blocks[i][0]
+
+        # find cluster: first es in the block, last es in the block, and number of es in the block
+        first_fit_pos = None  # Initialize to None to check later
+        last_fit_pos = None
+        cluster_score = 0
+        for pos in passed_es_map:
+            if block_start <= pos <= block_end:
+                cluster_score += 1  # Increment the sum for each matching position
+                if first_fit_pos is None:  # If first_fit_pos hasn't been set yet
+                    first_fit_pos = pos
+                last_fit_pos = pos  # update last_fit_pos to the current match
+        print(f"block ${i}: first_fit_pos = ${first_fit_pos}")
+        print(f"block ${i}: last_fit_pos = ${last_fit_pos}")
+
+        if cluster_score==0:
+            continue
         rows.append({
             'chr': read.Chromosome,
-            'start': genomic_start,
-            'end': (genomic_end +1),
+            'start': genomic_start + first_fit_pos - block_start,
+            'end': genomic_start + last_fit_pos - block_start,
             'name': read.Read_ID,
-            'score': score,
+            'score': cluster_score,
             'strand':read.Strand
         })  
     return rows
@@ -272,10 +290,6 @@ def process_reads(clusters_df):
                 continue
             # else - read was edited
             edited = True
-
-            # get read is mate1/mate2:
-            sam_flag = read.flag
-            mate = 2 if (sam_flag & 128) else 1
             
             # cluster_len = last position of editing site list minus first position of editing sites list
             cluster_len = max(passed_ES_map.keys()) - min(passed_ES_map.keys())
@@ -302,7 +316,7 @@ def process_reads(clusters_df):
                 passed_reads_data.append(all_data)
             # append details to the motifs file
             if passed_all_conditions and out_motifs:
-                motifs_count_data = {"Read_ID": read.Read_ID}
+                motifs_count_data = {"Read_ID": read.Read_ID, "Mate": read.Mate}
                 motifs_count_data.update(motifs_count(read.Read_Sequence, passed_ES_map))
                 motifs_data.append(motifs_count_data)
 
@@ -361,7 +375,7 @@ def main():
     # create passed DF and change order of columns
     passed_df = pd.DataFrame(passed_reads_data)
     column_order = [
-    'Index', 'Read_ID', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length',
+    'Index', 'Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length',
     'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'cigar', 'flag',
     'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based',
     'Number_of_Total_ES', 'Number_of_Passed_ES', 'Number_of_total_MM', 'Number_of_Passed_MM',
