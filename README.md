@@ -10,6 +10,7 @@ ___________________________________
 
 ___________________________________
 
-# Manual
+# Manual: 
+  * https://github.com/GiliWolf/HE_scripts/blob/main/HE_manual.pdf
 
 
