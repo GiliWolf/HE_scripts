@@ -303,7 +303,7 @@ def main():
         if output_columns == "basic": # basic columns
             header = ['Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Reference_Sequence', 'Number_of_MM', 'Number_of_Editing_Sites']
         else: # all columns
-            header = ['Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'cigar', 'flag', 'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based', 'Number_of_Editing_Sites', 'Number_of_total_MM', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
+            header = ['Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length', 'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'Cigar', 'Flag', 'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based', 'Number_of_Editing_Sites', 'Number_of_total_MM', 'EditingSites_to_PhredScore_Map', 'MM_to_PhredScore_Map']
             header.extend(mm_col_names)
             
         csv_writer.writerow(header)

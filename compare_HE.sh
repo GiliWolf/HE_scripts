@@ -4,7 +4,8 @@
 tissue="WholeBlood"
 original_tool_dir="/private9/Projects/dsRNAProject/HE/${tissue}/UEdetect.PE_0.05_0.6_30_0.6_0.1_0.8_0.2"
 new_tool_dir="/private10/Projects/Gili/HE_workdir/detection/GTEX_Multimappers_All/${tissue}/filtered_clusters"
-output_dir="/private10/Projects/Gili/HE_workdir/HE_compare/${tissue}"
+output_dir="/private10/Projects/Gili/HE_workdir/HE_compare/both/${tissue}"
+#/private9/Projects/dsRNAProject/HE/ArteryAorta/UEdetect.PE_0.05_0.6_30_0.6_0.1_0.8_0.2/GTEX-111YS_ArteryAorta_GTEX-111YS-0526-SM-5GZXJ.ES.bed_files/A2G.bed
 
 # """
 # for each sub directory:
@@ -39,7 +40,7 @@ for sub_dir in ${new_tool_dir}/*/; do
 
             touch "${output_file}"
             # Run bedtools intersect
-            bedtools intersect -a "${file}" -b "${original_file}" -v > "${output_file}"
+            bedtools intersect -a "${file}" -b "${original_file}" -wa > "${output_file}"
             
             echo "Processed ${file} and ${original_file}, output saved to ${output_file}"
         else

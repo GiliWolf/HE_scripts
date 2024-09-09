@@ -3,7 +3,7 @@ include { GENOME_SETUP } from '/private10/Projects/Gili/HE_workdir/HE_scripts/ge
 include { PRE_ANALYSIS } from '/private10/Projects/Gili/HE_workdir/HE_scripts/pre_analysis_divided_wf.nf'
 include { HE_DETECTION } from '/private10/Projects/Gili/HE_workdir/HE_scripts/HE_detection.nf'
 // TRANSFORM: 
-// ./nextflow HE_scripts/MAIN_HE_SCRIPT.nf -c HE_scripts/MAIN_HE_SCRIPT.nf.config --run_mode {transform | search | detect | search-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir MAIN_tests/genome_setup] | [SEARCH: --reads_dir <READS_FATQ_PATH> --outdir MAIN_tests/pre_analysis --genome_index_dir genome_setup/hg38_index --transform_genome_dir genome_setup/generic_transform/hg38transform --pair_end {0,1}] | [DETECT: --detect_input_dir <PATH_TO_SEARCH_OUTPUT_DIR> --detect_outdir MAIN_tests/detect --fasta_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa --fasta_index_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa.fai"]
+// ./nextflow HE_scripts/MAIN_HE_SCRIPT.nf -c HE_scripts/MAIN_HE_SCRIPT.nf.config --run_mode {transformGenome | align | detect | align-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir MAIN_tests/genome_setup] | [ALIGN: --reads_dir <READS_FATQ_PATH> --outdir MAIN_tests/pre_analysis --genome_index_dir genome_setup/hg38_index --transform_genome_dir genome_setup/generic_transform/hg38transform --pair_end {0,1}] | [DETECT: --detect_input_dir <PATH_TO_ALIGN_OUTPUT_DIR> --detect_outdir MAIN_tests/detect --fasta_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa --fasta_index_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa.fai"]
 
 def helpMessage() {
     log.info '''
@@ -13,7 +13,7 @@ def helpMessage() {
     .stripIndent()
 }
 
-workflow transform {
+workflow transformGenome {
     main:
         Channel
             .fromPath(params.genome_fasta, checkIfExists: true)
@@ -22,7 +22,7 @@ workflow transform {
         GENOME_SETUP(genome_ch)
 }
 
-workflow search {
+workflow align {
     main:
         if (params.pair_end == 0)                         //SE
             Channel
@@ -68,7 +68,7 @@ workflow detect {
         HE_DETECTION(samples_ch)
 }
 
-workflow detect_from_search {
+workflow detect_from_align {
     take:
         bam_files_ch
     
@@ -84,23 +84,23 @@ workflow {
     }
 
     //GENOME SETUP: TRANSFORM, INDEX
-    if (params.run_mode == "transform"){
-        transform()
+    if (params.run_mode == "transformGenome"){
+        transformGenome()
     }
     //PRE-ANALYSIS: FATSP, 1ST MAP, TRANSFORM, 2ND MAP, RETRANSFORM
-    else if (params.run_mode == "search") {
-        search()
+    else if (params.run_mode == "align") {
+        align()
     }
     // DETECTION: INDEX, DETECT, FILTER
     else if (params.run_mode == "detect"){
         detect()
     }
     // SERACH & DETECT
-    else if (params.run_mode == "search-detect"){
-        potential_HE_ch = search()
-        detect_from_search(potential_HE_ch)
+    else if (params.run_mode == "align-detect"){
+        potential_HE_ch = align()
+        detect_from_align(potential_HE_ch)
     }
     else {
-        error "HE usage: --run_mode {transform | search | detect | search-detect}"
+        error "HE usage: --run_mode {transformGenome | align | detect | align-detect}"
     }
 }

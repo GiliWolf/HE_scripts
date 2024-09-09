@@ -1,6 +1,6 @@
 // usage - ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf
 // independent - 
-// ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf --SE_HE_reads <path_to_sam> --fasta_path <path_to_genome_fasta> --outdir <outdir_path> --pair_end 0 --ref_base A --alt_base G -entry independent
+// ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf --SE_HE_reads <path_to_sam> --genome_fasta <path_to_genome_fasta> --outdir <outdir_path> --pair_end 0 --ref_base A --alt_base G -entry independent
 process INDEX_BAM {
         maxForks 1
         tag "index: ${sample_id}"
@@ -211,11 +211,11 @@ workflow HE_DETECTION {
     main:
         if (params.index){
             index_ch = INDEX_BAM(samples_ch) 
-            detected_clusters_ch = DETECT(index_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
+            detected_clusters_ch = DETECT(index_ch, params.genome_fasta, params.genome_index_dir, params.detect_python_script)
         }
         else {
             samples_ch = COUNT_RECORDS(samples_ch)
-            detected_clusters_ch = DETECT(samples_ch, params.fasta_path, params.fasta_index_path, params.detect_python_script)
+            detected_clusters_ch = DETECT(samples_ch, params.genome_fasta, params.genome_index_dir, params.detect_python_script)
         }
 
         if (!params.no_filter){

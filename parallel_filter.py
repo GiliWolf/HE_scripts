@@ -374,9 +374,10 @@ def main():
 
     # create passed DF and change order of columns
     passed_df = pd.DataFrame(passed_reads_data)
+    # **************NEEDS TO ADD ALSO "BAIC" OPTIONS***********
     column_order = [
     'Index', 'Read_ID', 'Mate', 'Chromosome', 'Strand', 'Position_0based', 'Alignment_length',
-    'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'cigar', 'flag',
+    'Read_Sequence', 'Visualize_Allignment', 'Reference_Sequence', 'Cigar', 'Flag',
     'Genomic_Position_Splicing_Blocks_0based', 'Read_Relative_Splicing_Blocks_0based',
     'Number_of_Total_ES', 'Number_of_Passed_ES', 'Number_of_total_MM', 'Number_of_Passed_MM',
     'Editing_Fraction_Passed', 'Passed_ES_Pos_to_Phred_Score_Map', 'Average_ES_Phred_Score',
