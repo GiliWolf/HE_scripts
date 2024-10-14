@@ -17,14 +17,6 @@ Dependencies (using Docker containers):
    - FASTP preprocessor (version 0.23.4)
    - PYSAM python module (version: 0.22.0)
 
- Hardware Requirements:
-   - Minimum RAM: ? GB
-   - Minimum CPU: ? cores
-
- Additional Notes:
-   - 
-
-Disclaimer: This script is provided as-is without any warranty. Use at your own risk.
 ----------------------------
 
 */
@@ -618,9 +610,5 @@ workflow {
 
 }
 
-
-// output {
-//     directory params.top_outdir
-// }
 
 
