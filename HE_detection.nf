@@ -1,6 +1,109 @@
-// usage - ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf
-// independent - 
-// ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf --SE_HE_reads <path_to_sam> --genome_fasta <path_to_genome_fasta> --outdir <outdir_path> --pair_end 0 --ref_base A --alt_base G -entry independent
+/*
+----------------------------
+Author: Gili Wolf
+Date: 01-08-2024
+Affiliation: Levanon Lab
+----------------------------
+
+Description: 
+    This script is the third part of the Hyper Editing tool, inspired by Hagit T. Porath’s 2014 work ("A genome-wide map of hyper-edited RNA reveals numerous new sites", Nature Communications). The tool is designed to identify hyper-edited A-to-G clusters.
+
+    First, the script processes BAM and BAI (indexed BAM) files to detect editing events by analyzing mismatches between read sequences and the reference genome, outputting all findings in the detect CSV file. Next, filtering is applied to identify hyper-edited reads based on Phred scores of editing events and mismatches, as well as criteria like editing fraction and cluster length. The filtering process generates several output files.
+
+    **Important Notes:**
+    - Multimappers: In cases of multiple loci, the locus with the highest editing scores (before Phred score filtering) is selected.
+    - Conditions: All conditions are applied after Phred score filtering. Only editing sites (ES) and mismatches (MM) that pass the minimum Phred score are considered.
+
+Usage: 
+    ./nextflow -c HE_scripts/HE_detection.config.nf run HE_scripts/HE_detection.nf --detect_input_dir <DETECT_INPUT_PATH|ALIGN_OUTPUT_DIR_PATH> --detect_outdir <DETECT_OUTPUT_PATH> --genome_fasta <PATH_TO_GENOME> 
+    --genome_index_dir <ORIGINAL_GENOME_INDEX_PATH>
+
+    independent run - use --independent flag (and --index if BAI files are missing)
+
+output files:
+    - Condition Analysis CSV: This file provides a True/False assessment for each condition (passed/not
+    passed) applied to each read.
+    - Passed Reads CSV: Contains all the metadata provided in the initial detection CSV file, along
+    with additional information post-filtering, such as the number of passed editing sites (ES) and
+    mismatches (MM).
+    - Motifs CSV: For each read, this file includes the count of each upstream base present in the
+    total editing events (e.g., 3 of the events had T before them) and similarly for downstream
+    bases. This information is used for later analysis of motifs related to the editing.
+    - Clusters BED: Contains the genomic positions of each hyper-editing cluster.
+    - Summary JSON: Provides statistics and summary information for the entire sample, such as
+    the total number of passed reads and the average number of editing sites (ES)
+
+Dependencies (using Docker containers):
+   - samtools
+   - python
+   - PYSAM python module (version: 0.22.0)
+
+----------------------------
+
+
+*/
+
+params.help=false
+
+def helpMessage() {
+    log.info '''
+        HYPER-EDITING DETECTION:
+        ===========================
+        1. Detect all editing sites and mismatches using reference genome.
+        2. Filter reads according to several criteria regarding ES and MM.
+        3. Output statistics and summary files.
+        ===========================
+        usage: nextflow -c HE_detection.nf.config [options...] HE_detection.nf
+        * for independent run (outsourced BAM files) :
+          nextflow -c HE_detection.nf.config [options...] HE_detection.nf --independent
+        * for help message:
+          nextflow -c run HE_detection.nf --help
+
+        options:
+        ---------------
+                --help              displays help message             
+        ---------------
+        Input File Parameters
+                --bam_suffix        Suffix for input BAM files (default: ".bam")
+                --bai_suffix        Suffix for input BAI (BAM index) files (default: ".bai")
+                --detect_input_dir  Directory for detection input. Can be either the output directory from Pre-Analysis or a directory containing input BAM and/or BAI files (required)
+                --retransform_dir_name  Directory where re-transformed BAM files from Pre-Analysis are stored (default: "re-transform"). Not used in an independent run
+                --HE_reads          Path pattern for hyper-edited (HE) reads for a regular run (default: "$params.detect_input_dir/$params.retransform_dir_name/**/*$params.bam_suffix,$params.bai_suffix")
+                --HE_reads_independent  Path pattern for HE reads in an independent run (default: "$params.detect_input_dir/**{$params.bam_suffix,$params.bai_suffix}")
+                --detect_python_script  Path to the Python script for parallel detection (default: "/private10/Projects/Gili/HEworkdir/HEscripts/paralleldetection.py")
+                --filter_python_script  Path to the Python script for parallel filtering (default: "/private10/Projects/Gili/HEworkdir/HEscripts/parallelfilter.py")
+                --PE_filter_python_script  Path to the Python script for paired-end filtering
+        ---------------
+        Independent Run Options
+                --independent       Boolean flag indicating whether the run is independent (default: false)
+                --index             Boolean flag indicating whether indexing is enabled (default: false)
+                --index_threads     Number of threads for indexing (default: 16)
+        ---------------
+        Output Parameters
+                --detect_out_dir    Directory for storing detection outputs (required)
+                --index_output_dir  Directory for storing index files (default: "$params.detect_out_dir/index")
+                --detect_output_dir Directory for storing detected clusters files (default: "$params.detect_out_dir/detectedclusters")
+                --filter_output_dir Directory for storing filtered clusters files (default: "$params.detect_out_dir/filteredclusters")
+        ---------------
+        Detection Script Parameters
+                --detection_columns_select  Columns to include in detection output, either 'all' or 'basic' (default: 'all')
+                --max_detection_threads  Maximum threads for parallel detection (default: 3)
+                --detection_batch_size    Batch size for detection; set to 0 for automatic determination (default: 0)
+        ---------------
+        Filter Script Parameters
+                --filter_output_types  Types of output for filtering: "all", "passed", "analysis", "motifs", "bed", or "summary" (default: "all")
+                --max_filter_threads  Maximum threads for parallel filtering (default: 3)
+                --filter_batch_size    Batch size for filtering; set to 0 for automatic determination (default: 0)
+                --min_editing_sites    Minimum editing sites required for a read to be considered edited (default: 1)
+                --min_editing_fraction Minimum fraction of editing sites relative to total sites for hyper-editing (default: 0.6)
+                --min_phred_es_score   Minimum Phred score required for a base to be considered (default: 30)
+                --length_ratio         Minimum ratio of editing site length to read length (default: 0.05)
+                --min_cluster_length_ratio  Minimum ratio of cluster length to total read length (default: 0.1)
+
+    '''
+    .stripIndent()
+}
+
 process INDEX_BAM {
         maxForks 1
         tag "index: ${sample_id}"
@@ -233,6 +336,10 @@ workflow HE_DETECTION {
 
 
 workflow {
+    if(params.help){
+        helpMessage()
+        System.exit()
+    }
 
     if (params.independent){
         def base_comb="${params.ref_base}2${params.alt_base}"

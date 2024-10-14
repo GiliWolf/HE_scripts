@@ -2,12 +2,55 @@
 include { GENOME_SETUP } from '/private10/Projects/Gili/HE_workdir/HE_scripts/genome_setup.nf' 
 include { PRE_ANALYSIS } from '/private10/Projects/Gili/HE_workdir/HE_scripts/pre_analysis_divided_wf.nf'
 include { HE_DETECTION } from '/private10/Projects/Gili/HE_workdir/HE_scripts/HE_detection.nf'
-// TRANSFORM: 
-// ./nextflow HE_scripts/MAIN_HE_SCRIPT.nf -c HE_scripts/MAIN_HE_SCRIPT.nf.config --run_mode {transformGenome | align | detect | align-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir MAIN_tests/genome_setup] | [ALIGN: --reads_dir <READS_FATQ_PATH> --outdir MAIN_tests/pre_analysis --genome_index_dir genome_setup/hg38_index --transform_genome_dir genome_setup/generic_transform/hg38transform --pair_end {0,1}] | [DETECT: --detect_input_dir <PATH_TO_ALIGN_OUTPUT_DIR> --detect_outdir MAIN_tests/detect --fasta_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa --fasta_index_path "/private10/Projects/Gili/HE_workdir/genome_setup/hg38.fa.fai"]
+
+/*
+----------------------------
+Author: Gili Wolf
+Date: 01-08-2024
+Affiliation: Levanon Lab
+----------------------------
+
+Description:
+    This script controls the workflow of the Hyper-Editing detection tool, controlling of three key steps:
+
+    1. Genome Transformation:
+        The script performs genome transformations, creating 12 different transformations for each possible base combination, and indexes the transformed genomes using STAR. This step generates a transformed genome that facilitates the detection of hyper-editing events.
+
+    2. Pre-Analysis:
+        This step is the core of the original hyper-editing pipeline. It aligns the sample reads to the original genome, then transforms unmapped reads and maps them again to the transformed genome. The original sequences of the transformed reads from the second alignment are then recovered and stored in alignment BAM files.
+
+    3. Detection:
+        This step involves analyzing the BAM files to detect editing sites and mismatches, filtering the results to identify hyper-edited reads.
+
+Run Modes:
+    The script offers multiple run modes to customize the workflow based on user needs:
+    - transformGenome: Executes only the Genome Transformation step.
+    - align: Executes only the Pre-Analysis step.
+    - detect: Executes only the Detection step.
+    - align-detect: Combines Pre-Analysis and Detection steps, running both consecutively
+
+Usage:
+
+    ./nextflow -c HE_scripts/MAIN_HE_SCRIPT.nf.config run HE_scripts/MAIN_HE_SCRIPT.nf --
+    run_mode {transformGenome|align|detect|align-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir <OUTDIR_PATH>] | [ALIGN: --align_reads_dir <READS_FATQ_PATH> --align_outdir <OUTDIR_PATH> --genome_index_dir <GENOME_INDEX_PATH> --transform_genome_dir <TRANSFORM_GENOME_DIR_PATH> --pair_end {0,1}] | [DETECT: --detect_input_dir <PATH_TO_ALIGN_OUTPUT_DIR> --detect_outdir <OUTDIR_PATH> --genome_fasta <PATH_TO_GENOME> --genome_index_dir <GENOME_INDEX_PATH>]
+
+*/
+
+params.help=false
 
 def helpMessage() {
     log.info '''
-        MAIN HE SCRIPT: 
+        HYPER-EDITING MAIN SCRIPT:
+        ===========================
+        This script controls the workflow of the Hyper-Editing detection tool.
+        Avaiable run modes:
+        - transformGenome: Executes only the Genome Transformation step.
+        - align: Executes only the Pre-Analysis (main algorithm) step.
+        - detect: Executes only the Detection step.
+        - align-detect: Combines Pre-Analysis and Detection steps, running both consecutively
+        ===========================
+        usage: ./nextflow -c HE_scripts/MAIN_HE_SCRIPT.nf.config run HE_scripts/MAIN_HE_SCRIPT.nf --
+        run_mode {transformGenome|align|detect|align-detect} [TRANSFORM: --genome_fasta <PATH_TO_GENOME> --genome_setup_outdir <OUTDIR_PATH>] | [ALIGN: --align_reads_dir <READS_FATQ_PATH> --align_outdir <OUTDIR_PATH> --genome_index_dir <GENOME_INDEX_PATH> --transform_genome_dir <TRANSFORM_GENOME_DIR_PATH> --pair_end {0,1}] | [DETECT: --detect_input_dir <PATH_TO_ALIGN_OUTPUT_DIR> --detect_outdir <OUTDIR_PATH> --genome_fasta <PATH_TO_GENOME> --genome_index_dir <GENOME_INDEX_PATH>]
         
     '''
     .stripIndent()
