@@ -11,6 +11,11 @@ ___________________________________
 ___________________________________
 
 # Manual: 
-  * https://github.com/GiliWolf/HE_scripts/blob/main/HE_manual.pdf
+  * [https://github.com/GiliWolf/HE_scripts/blob/main/HE_manual.pdf](https://github.com/GiliWolf/HE_scripts/blob/main/HE_manual_final.pdf)
 
+___________________________________
+
+# Article:
+A summarized report detailing the biological and technical background, along with the methods used in constructing this tool.
+ * https://github.com/GiliWolf/HE_scripts/blob/main/HE_article_final.pdf
 
